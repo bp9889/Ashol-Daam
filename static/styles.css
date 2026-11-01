@@ -446,3 +446,11 @@ h1 { font-weight: 700; font-size: 40px; line-height: 1.02; letter-spacing: -0.03
 .slip.is-switching { opacity: 0.55; transition: opacity 200ms ease-out; }
 .tile.flying { position: fixed; z-index: 60; margin: 0; pointer-events: none; transform-origin: 0 0;
                box-shadow: 0 18px 30px rgba(34, 32, 28, 0.18); background: var(--tile, #fff); }
+
+/* ---- no exact match: look-alikes, clearly labelled ---- */
+.alts { border-top: 1px solid var(--rule); }
+.alt-note { margin: 16px 32px; padding: 14px 16px; border: 1px dashed var(--fair); background: var(--slip); }
+.alt-note .mono { margin: 0 0 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--fair); }
+.alt-note p:last-child { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+.chip.alt { color: var(--fair); border-color: var(--fair); }
+@media (max-width: 860px) { .alt-note { margin-inline: 16px; } }

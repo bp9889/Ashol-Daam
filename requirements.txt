@@ -11,3 +11,5 @@ tzdata>=2024.1
 psycopg[binary]>=3.1
 # Talks to a browser (Edge/Chrome on your PC, or a browser service on Vercel) to read sale prices
 playwright>=1.45
+# Compares product photos (finds the same product under a vague name)
+Pillow>=10.0

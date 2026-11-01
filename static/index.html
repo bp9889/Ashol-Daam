@@ -189,7 +189,7 @@
         <p class="mono soft">Ranked by price with delivery, rating and reviews</p>
       </div>
       <ol class="rank" id="rBuyList"></ol>
-      <p class="buy-loading mono" id="rBuyLoading" hidden>Reading delivery fees and sizes from sellers' pages…</p>
+      <p class="buy-loading mono" id="rBuyLoading" hidden>Comparing photos and reading delivery fees and sizes…</p>
       <p class="buy-empty" id="rBuyEmpty"></p>
       <button type="button" class="more mono" id="rBuyMore" hidden></button>
       <details class="unproven" id="rUnproven" hidden>
@@ -197,6 +197,14 @@
         <p class="small">Cheaper sometimes, but with few or no reviews, or bad ones. You take more risk buying here.</p>
         <ol class="rank plain" id="rUnprovenList"></ol>
       </details>
+      <section class="alts" id="rAlts" hidden aria-labelledby="rAltsTitle">
+        <div class="alt-note" role="note">
+          <p class="mono" id="rAltsTitle">Couldn't find this exact product</p>
+          <p>No other seller has the same item (same name or same photo). These look similar, but they're
+             <strong>not the same item</strong>, so compare photos and details before buying.</p>
+        </div>
+        <ol class="rank plain" id="rAltList"></ol>
+      </section>
     </aside>
   </div>
 

@@ -288,17 +288,82 @@ def wants_size(title: str, variant: str | None = None):
     return lambda option: bool(size) and size in sizes_in(option)
 
 
+# Words that describe almost any product in a category: they say nothing about WHICH product it is.
+# A title made only of these ("Sneakers Shoes For Men Summer Casual Lace Up Classic Fashion…") fits
+# hundreds of different products, so for such titles only the photo can tell it's the same one.
+GENERIC = set("""
+men mens man women womens woman ladies lady boys boy girls girl kids kid baby babies unisex adult adults
+youth teen child children family couple gents
+summer winter spring autumn fall season seasons all-season rainy
+casual formal fashion fashionable stylish stlysh style styles trendy trend classic classical modern
+latest new 2023 2024 2025 2026 elegant luxury luxurious simple basic plain solid printed print pattern
+design designer collection exclusive special smart cool cute beautiful pretty attractive gorgeous
+lightweight light weight heavy comfort comfortable comfy soft hard durable strong sturdy flexible
+breathable waterproof water resistant anti slip non skid shockproof washable reusable portable
+lace up laceup slip loafer loafers shoe shoes sneaker sneakers sandal sandals slipper slippers
+boot boots footwear running walking jogging sports sport athletic gym training trainer trainers
+outdoor indoor hiking trekking travel daily everyday office party wedding home kitchen
+shirt shirts tshirt t-shirt tee tees polo pant pants trouser trousers jeans denim short shorts
+dress dresses top tops kurti kurta saree salwar kameez hoodie hoodies jacket jackets sweater
+sweatshirt panjabi pajama pyjama lungi frock gown skirt leggings jogger joggers tracksuit
+bag bags backpack wallet purse belt cap caps hat hats watch watches sunglasses glasses
+cotton leather pu synthetic fabric mesh canvas rubber silicone plastic metal steel stainless wooden wood
+sole insole upper lining
+white black red blue green yellow pink purple orange brown grey gray navy maroon golden gold silver
+beige cream khaki multicolor multicolour multi colorful colourful color colour colors colours
+size sizes free full half long slim fit regular loose big small medium large extra
+quality premium high best top super good excellent standard original genuine authentic
+pair pairs piece set combo pack item product products
+korean british italian chinese indian imported export exports local bd bangladesh
+flat flats bottom cushion air sneakerfor moccasin moccasins canvas espadrille espadrilles
+non-slip anti-slip slip-on slipon lace-up shock absorption absorbing cycling climbing walking
+fit stretch thin thick warm cold hot dry wet quick fast easy clean
+mini small big tall short wide narrow round square oval
+all assorted various random mixed mix arrival arrivals trending stock limited edition
+perfume perfumes fragrance fragrances attar ittar oil spray edp edt cologne mist scent lasting hour hours
+phone phones mobile smartphone android tablet device devices accessories accessory gadget gadgets
+bluetooth wireless wired earphone earphones earbud earbuds headphone headphones headset tws
+usb type-c typec fast charging power speaker speakers sound bass audio music led lamp bulb fan
+cream lotion gel serum soap shampoo wash face body hair skin care natural organic herbal
+cleaner cleaning tool tools kit set holder box bottle bowl plate cup mug glass tray storage
+""".split())
+
+
+NAME_WORDS = 4
+
+
+def name_words(title: str) -> list[str]:
+    """The words that NAME the product: the first few that aren't generic descriptions, kinds of item
+    or sizes. "Vampire Blood Euro Valley Super Premium 30 ML Perfume" -> vampire, blood, euro, valley.
+    "Running Sneakers … Motorbike Driving Safety Shoes" -> motorbike, driving, safety."""
+    kind_words = set().union(*KINDS.values())
+    title = re.sub(r"\d+(?:\.\d+)?\s*%", " ", title)  # "5% AHA": percentages aren't names
+    words = [w for w in key_words(title, limit=40)
+             if not SIZE_WORD.fullmatch(w) and w not in GENERIC and w not in kind_words]
+    return words[:NAME_WORDS]
+
+
+def is_bland(title: str) -> bool:
+    """True if the title has no brand, model or product name: only generic describing words."""
+    return not name_words(title)
+
+
+def shares_name(names: list[str], other_title: str) -> bool:
+    """The other title has (nearly) all of our name words: all of them if we have 1-2, else all but one."""
+    if not names:
+        return False
+    words = set(tokens(other_title))
+    need = len(names) if len(names) <= 2 else len(names) - 1
+    return sum(1 for w in names if w in words) >= need
+
+
 def comparable(title: str, price: float, r: Listing, variant: str | None = None,
                category: tuple[str, ...] = (), identity: list[str] | None = None) -> bool:
     """Is listing `r` the same product, of the same kind, in the same category, size and pack size,
-    at a believable price?"""
+    at a believable price? Matched by its name, or (for vague names) by having our product photo."""
     size = our_size(title, variant)
     words = match_words(title)
-    if not same_kind(title, r.title) or pack_size(title) != pack_size(r.title):
-        return False
-    if not same_identity(identity or [], r.title):
-        return False
-    if not same_category(category, r.categories, strong_match=similarity(words, r.title) >= 1.0):
+    if pack_size(title) != pack_size(r.title):
         return False
     lo, hi = price * PRICE_BAND[0], price * PRICE_BAND[1]
     if r.size_checked:
@@ -308,10 +373,46 @@ def comparable(title: str, price: float, r: Listing, variant: str | None = None,
             return False
     elif not lo <= r.price <= hi:
         return False
-    if similarity(words, r.title) < MIN_MATCH or not same_model(title, words, r.title):
+
+    by_name = (shares_name(name_words(title), r.title) and same_kind(title, r.title)
+               and same_identity(identity or [], r.title)
+               and similarity(words, r.title) >= MIN_MATCH and same_model(title, words, r.title)
+               and same_category(category, r.categories, strong_match=similarity(words, r.title) >= 1.0))
+    by_photo = not by_name and r.photo_match and photo_fits(title, r, category)
+    if not (by_name or by_photo):
         return False
-    if size and not r.size_checked and sizes_in(r.title) != {size}:
-        return False  # a different size, several sizes, or no size given: its price isn't comparable
+    if size and not r.size_checked:
+        found = sizes_in(r.title)
+        if by_photo:
+            if found and found != {size}:
+                return False  # the photo matches, but the title names another size
+        elif found != {size}:
+            return False  # a different size, several sizes, or no size given: its price isn't comparable
+    return True
+
+
+def similar(title: str, price: float, r: Listing, variant: str | None = None,
+            category: tuple[str, ...] = ()) -> bool:
+    """A look-alike: same category and kind of item, believable price, and a similar name or photo."""
+    if pack_size(title) != pack_size(r.title) or not photo_fits(title, r, category):
+        return False
+    if not price * PRICE_BAND[0] <= r.price <= price * PRICE_BAND[1]:
+        return False
+    size = our_size(title, variant)
+    if size and sizes_in(r.title) and size not in sizes_in(r.title):
+        return False
+    close_photo = r.photo_distance is not None and r.photo_distance <= LOOKS_SIMILAR + 20
+    return close_photo or similarity(match_words(title), r.title) >= 0.5
+
+
+def photo_fits(title: str, r: Listing, category: tuple[str, ...]) -> bool:
+    """A listing with our photo but a vague name still has to be the same kind of item (if it says),
+    in exactly our Daraz category."""
+    ours, theirs = kinds_in(title), kinds_in(r.title)
+    if ours and theirs and not ours & theirs:
+        return False
+    if category and r.categories:
+        return category[-1] == r.categories[-1]
     return True
 
 
@@ -349,11 +450,20 @@ def compare(title: str, price: float, own_id: str, results: list[Listing],
         if comparable(title, price, r, variant, path, identity):
             matches.append(r)
 
+    # Nothing (or little) is the same product? Keep the closest look-alikes as "alternatives":
+    # shown separately, clearly labelled, never used for the verdict.
+    taken = {r.external_id for r in matches}
+    alternatives = [r for r in results if r.external_id.split("-")[0] != own_item
+                    and r.external_id not in taken and similar(title, price, r, variant, path)]
+    alternatives.sort(key=lambda r: (r.photo_distance if r.photo_distance is not None else 999,
+                                     -similarity(match_words(title), r.title), r.price))
+
     matches.sort(key=lambda r: (r.price_unconfirmed, r.price))
     # Only prices we're sure of count toward "what most sellers charge".
     prices = sorted(r.price for r in matches if not r.price_unconfirmed)
     enough = len(prices) >= MIN_SELLERS
     kept = [_listing_dict(r) for r in matches[:MAX_LISTINGS]]
+    kept += [dict(_listing_dict(r), alternative=True) for r in alternatives[:MAX_ALTERNATIVES]]
     if own is not None:
         mine = _listing_dict(own, is_this=True)
         # Search shows our listing's cheapest option; show the price of the option we're checking.
@@ -372,8 +482,10 @@ def compare(title: str, price: float, own_id: str, results: list[Listing],
 
 
 MAX_LISTINGS = 15
+MAX_ALTERNATIVES = 6
+LOOKS_SIMILAR = 40   # photo fingerprints this close (of 256 bits) look alike, even if not the same photo
 # Bump when matching changes, so saved seller lists made with older rules get rebuilt.
-MATCH_VERSION = 11
+MATCH_VERSION = 15
 
 
 def _listing_dict(r: Listing, is_this: bool = False) -> dict:
@@ -385,6 +497,8 @@ def _listing_dict(r: Listing, is_this: bool = False) -> dict:
         # Only the fee shown on the product page counts. Search's "free shipping" badge often means
         # free only with a voucher or a minimum spend (e.g. Daraz shows ৳90 on the page).
         "delivery": r.delivery,
+        "photo_match": r.photo_match,
+        "photo_distance": r.photo_distance,
         "match_version": MATCH_VERSION,
     }
 
@@ -421,6 +535,20 @@ def _when(iso: str) -> str:
     return "today" if days <= 0 else "yesterday" if days == 1 else f"{days} days ago"
 
 
+def _alternative_notes(item: dict) -> list[str]:
+    notes = []
+    distance = item.get("photo_distance")
+    if distance is not None and distance <= LOOKS_SIMILAR:
+        notes.append("Looks similar")
+    if item.get("rating") and item.get("reviews"):
+        notes.append(f"{item['rating']:.1f}★ from {int(item['reviews']):,} reviews")
+    else:
+        notes.append("No reviews yet")
+    if item.get("delivery") == 0:
+        notes.append("Free delivery")
+    return notes
+
+
 def rank(listings: list[dict]) -> dict:
     """Split listings into a ranked "where to buy" list and an "unproven" list.
 
@@ -428,8 +556,10 @@ def rank(listings: list[dict]) -> dict:
               Sorted by a score that balances price (cheaper = better) and trust.
     Unproven: no/too few reviews, or poorly rated. Sorted by price, each with a reason.
     """
+    alternatives = [dict(item, notes=_alternative_notes(item)) for item in listings if item.get("alternative")]
+    listings = [item for item in listings if not item.get("alternative")]
     if not listings:
-        return {"ranked": [], "unproven": []}
+        return {"ranked": [], "unproven": [], "alternatives": alternatives}
 
     def is_proven(item: dict) -> bool:
         reviews, rating = int(item.get("reviews") or 0), item.get("rating")
@@ -474,6 +604,8 @@ def rank(listings: list[dict]) -> dict:
             extras.append("Regular price for this size. It may be on sale for less")
         elif item.get("confirmed_at"):
             extras.append(f"Price checked on this site {_when(item['confirmed_at'])}")
+        if item.get("photo_match") and not item.get("is_this"):
+            extras.append("Same photo as yours")
         if item.get("mall"):
             extras.append("Official Daraz Mall store")
         if sold:
@@ -502,4 +634,4 @@ def rank(listings: list[dict]) -> dict:
 
     ranked.sort(key=lambda e: (-e["score"], e["total"]))
     unproven.sort(key=lambda e: (e.get("poorly_rated", False), e["total"]))
-    return {"ranked": ranked, "unproven": unproven}
+    return {"ranked": ranked, "unproven": unproven, "alternatives": alternatives}

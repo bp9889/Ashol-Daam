@@ -58,7 +58,7 @@ def test_variant_and_model_number_must_match():
         Listing("i4", "Redmi Buds 6 Active Earbuds", 2350),           # same thing, shorter title
     ]
     market = compare("Redmi Buds 6 Active TWS Earbuds", 2499, "i9", others)
-    assert [listing["title"] for listing in market.listings] == [
+    assert [listing["title"] for listing in market.listings if not listing.get("alternative")] == [
         "Redmi Buds 6 Active Earbuds",
         "Redmi Buds 6 Active TWS Earbuds Blue",
     ]

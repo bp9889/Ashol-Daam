@@ -42,13 +42,13 @@ RESULTS = [
 
 def test_only_the_same_cover_counts_not_other_covers_or_lens_protectors():
     market = compare(OURS, 299, OWN_ID, RESULTS, category="9543")
-    sellers = [l["title"] for l in market.listings if not l["is_this"]]
+    sellers = [l["title"] for l in market.listings if not l["is_this"] and not l.get("alternative")]
     assert sellers == [RESULTS[1].title]
 
 
 def test_category_from_our_own_page_when_we_are_not_in_the_search():
     market = compare(OURS, 299, OWN_ID, RESULTS[1:], category="9543")
-    assert [l["title"] for l in market.listings] == [RESULTS[1].title]
+    assert [l["title"] for l in market.listings if not l.get("alternative")] == [RESULTS[1].title]
 
 
 def test_search_asks_for_the_kind_of_item():
@@ -68,7 +68,7 @@ def test_earbuds_filed_one_level_off_still_count_when_the_title_matches():
     results = [item(10, "Redmi Buds 6 Active TWS Bluetooth Earphone Black", 3193, ("147", "148", "154", "155")),
                item(11, "Redmi Buds 6 Active Case Cover Silicone", 250, ("147", "148", "154", "155"))]
     market = compare(ours, 3299, "i99-s99", results, category="9708")
-    assert [l["title"] for l in market.listings] == [results[0].title]
+    assert [l["title"] for l in market.listings if not l.get("alternative")] == [results[0].title]
 
 
 def test_pack_sizes():
@@ -112,4 +112,4 @@ def test_the_longer_search_finds_the_exact_copy(monkeypatch):
             title=OURS, price=299, original_price=650, category="9543"), DarazAdapter(), detailed=False)
         listings = product.market_checks[-1].listings
     assert sorted(queries) == ["nothing cmf phone 2 pro cover", "nothing cmf phone 2 pro soft hardness technology eouro silicone"]
-    assert [(l["seller"], l["price"]) for l in listings if not l["is_this"]] == [("Seller 1600029726", 263)]
+    assert [(l["seller"], l["price"]) for l in listings if not l["is_this"] and not l.get("alternative")] == [("Seller 1600029726", 263)]

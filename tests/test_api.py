@@ -32,7 +32,7 @@ def test_track_a_link_gives_an_instant_verdict(monkeypatch):
         assert (verdict["basis"], verdict["verdict"]) == ("other_sellers", "fake_discount")
         assert "sell it for less" in verdict["headline"]
         assert first["market"]["count"] == 3
-        others = [s["seller"] for s in first["market"]["listings"] if not s["is_this"]]
+        others = [s["seller"] for s in first["market"]["listings"] if not s["is_this"] and not s.get("alternative")]
         assert others == ["Smart Deals", "Mi Store BD", "Tech Haat"]
         assert "where_to_buy" in first["market"]
         # Same product again within the refresh window: no new snapshot.

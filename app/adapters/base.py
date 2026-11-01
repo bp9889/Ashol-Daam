@@ -49,6 +49,8 @@ class Listing:
     delivery: float | None = None # standard delivery fee read from the page (0 = free); None = unknown
     # The store's category path, broadest first, e.g. ["2", "9536", "9543"] (Mobile accessories > Phone cases)
     categories: tuple[str, ...] = ()
+    photo_match: bool = False      # its photo is our product's photo (same file or same fingerprint)
+    photo_distance: int | None = None  # how different its photo is from ours (0-256 bits); None = not compared
     image: str | None = None      # product photo for this listing
     # Set when this listing was narrowed to one size/option (search shows only the cheapest one).
     size_checked: bool = False

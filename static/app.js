@@ -379,7 +379,7 @@ function factClass(text) {
   return null;
 }
 
-function sellerRow(r, l, { best = false, rank = null } = {}) {
+function sellerRow(r, l, { best = false, rank = null, alternative = false } = {}) {
   const name = l.seller || "A seller";
   // Clicking a seller opens their listing on the receipt (in the centre); "Open on Daraz" is there.
   const pickable = Boolean(l.url && !r.is_demo && !l.is_this);
@@ -387,7 +387,8 @@ function sellerRow(r, l, { best = false, rank = null } = {}) {
   const who = el("div", { class: "who" },
     el("div", { class: "s" }, nameNode,
       best ? el("span", { class: "chip best", text: "Best pick" }) : null,
-      l.is_this ? el("span", { class: "chip this", text: "You pasted this" }) : null),
+      l.is_this ? el("span", { class: "chip this", text: "You pasted this" }) : null,
+      alternative ? el("span", { class: "chip alt", text: "Similar, not the same" }) : null),
     el("div", { class: "facts" },
       ...(l.notes || []).map((text) => el("span", factClass(text) ? { class: factClass(text), text } : { text }))),
   );
@@ -480,10 +481,13 @@ function flyToReceipt(tileNode) {
 }
 
 function renderWhereToBuy(r) {
-  const { ranked = [], unproven = [] } = r?.market?.where_to_buy ?? {};
+  const { ranked = [], unproven = [], alternatives = [] } = r?.market?.where_to_buy ?? {};
+  // Look-alikes only once the search is finished and found no other seller of the same item.
+  const othersFound = [...ranked, ...unproven].some((l) => !l.is_this);
+  const showAlts = Boolean(r) && !othersFound && alternatives.length > 0 && !detailsPending(r);
   $("rBuyEmpty").textContent = !r
     ? "Paste a Daraz link to see the best sellers for that product."
-    : ranked.length ? "" : unproven.length
+    : showAlts || ranked.length ? "" : unproven.length
       ? "No seller has enough reviews to recommend yet."
       : "We couldn't find other sellers of this exact product.";
 
@@ -491,7 +495,7 @@ function renderWhereToBuy(r) {
   list.textContent = "";
   ranked.forEach((l, i) => {
     if (showAllSellers || i < BUY_SHOWN || l.is_this) {
-      const row = sellerRow(r, l, { best: i === 0, rank: i + 1 });
+      const row = sellerRow(r, l, { best: i === 0 && othersFound, rank: i + 1 });
       if (animateNext) { row.classList.add("enter"); row.style.setProperty("--i", list.children.length); }
       list.appendChild(row);
     }
@@ -510,6 +514,18 @@ function renderWhereToBuy(r) {
   fold.hidden = !unproven.length;
   fold.open = !ranked.length;
   $("rUnprovenSummary").textContent = `Not enough reviews yet (${unproven.length})`;
+
+  const alts = $("rAlts");
+  const altList = $("rAltList");
+  altList.textContent = "";
+  alternatives.forEach((l) => altList.appendChild(sellerRow(r, l, { alternative: true })));
+  const wasHidden = alts.hidden;
+  alts.hidden = !showAlts;
+  if (showAlts && wasHidden && !reduceMotion()) {
+    alts.querySelector(".alt-note").animate(
+      [{ opacity: 0, transform: "translateY(-6px) scale(0.97)" }, { opacity: 1, transform: "none" }],
+      { duration: 220, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
+  }
 }
 
 // ---------- price history ----------

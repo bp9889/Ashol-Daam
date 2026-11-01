@@ -16,6 +16,8 @@ from statistics import median
 
 from .market import (MATCH_VERSION, MIN_SELLERS, category_path, comparable, compare, identity_words, rank,
                      size_lookups, wants_size)
+from .images import MAX_DIFFERENT_BITS, photo_distances
+from .market import PRICE_BAND
 from .models import Alert, MarketCheck, PriceSnapshot, Product, Visit
 from .verdict import MarketInfo, Point, analyze, money
 
@@ -106,6 +108,32 @@ def check_sizes(session: Session, product: Product, adapter: Adapter, results: l
     return out
 
 
+def match_photos(product: Product, results: list, price: float, identity: list[str] | None,
+                 download: bool = True) -> list:
+    """Listings with vague names that the name check misses, but that use our product photo.
+    download=False: only the same photo file counts (instant); True: photo fingerprints too."""
+    own_item = product.external_id.split("-")[0]
+    path = category_path(product.external_id, results, product.category)
+    leaf = path[-1] if path else None
+    ours = [product.image_url] + [r.image for r in results if r.external_id.split("-")[0] == own_item]
+    candidates = [r for r in results
+                  if r.image and r.external_id.split("-")[0] != own_item
+                  and (leaf is None or not r.categories or r.categories[-1] == leaf)
+                  and price * PRICE_BAND[0] <= r.price <= price * PRICE_BAND[1] * 1.5]
+    # Name misses first: they're the ones a photo can rescue.
+    candidates.sort(key=lambda r: comparable(product.title, price, r, product.variant, path, identity))
+    if not candidates:
+        return results
+    try:
+        distances = photo_distances(ours, candidates, download=download)
+    except Exception as exc:  # photos are a bonus: never break a check because of them
+        log.info("Photo comparison failed for %s: %s", product.id, exc)
+        return results
+    return [replace(r, photo_distance=distances[r.external_id],
+                    photo_match=distances[r.external_id] <= MAX_DIFFERENT_BITS)
+            if r.external_id in distances else r for r in results]
+
+
 PAGES_PER_CHECK = 4  # pages the hidden browser opens per seller comparison, at most
 
 
@@ -179,6 +207,7 @@ def update_market(session: Session, product: Product, adapter: Adapter, force: b
     seen_ids = {r.external_id for r in results}
     results += [r for r in extra if r.external_id not in seen_ids]
     own_fee = None
+    results = match_photos(product, results, float(current.price), identity, download=detailed)
     if detailed:
         results = check_sizes(session, product, adapter, results, float(current.price), identity)
         results, own_fee = read_pages(product, adapter, results, float(current.price), identity)
@@ -289,7 +318,7 @@ def market_info(product: Product, listings: list[dict] | None = None) -> MarketI
     if check is None:
         return None
     as_float = lambda v: float(v) if v is not None else None  # noqa: E731
-    others = [l for l in (listings or []) if not l.get("is_this")]
+    others = [l for l in (listings or []) if not l.get("is_this") and not l.get("alternative")]
     if not others or not all("id" in l for l in others):
         # Older saved lists (or samples): use the numbers stored with the search.
         return MarketInfo(count=check.seller_count, median=as_float(check.median_price),
