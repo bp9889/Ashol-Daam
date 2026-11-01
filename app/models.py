@@ -90,3 +90,16 @@ class Alert(Base):
     last_notified_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
 
     product: Mapped[Product] = relationship()
+
+
+class Visit(Base):
+    """"This browser checked this product." Keeps each visitor's "Recently checked" list private.
+    `visitor` is a random id stored in a cookie: no name, no login, nothing personal."""
+
+    __tablename__ = "visits"
+    __table_args__ = (UniqueConstraint("visitor", "product_id", name="uq_visit_visitor_product"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    visitor: Mapped[str] = mapped_column(String(64), index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -87,12 +87,34 @@ def test_old_seller_lists_are_rebuilt(monkeypatch):
     assert len(calls) == 1
 
 
-def test_remove_a_product(monkeypatch):
-    with TestClient(app) as client:
-        products = client.get("/api/products").json()
-        demo = next(p for p in products if p["is_demo"])
-        assert client.delete(f"/api/products/{demo['id']}").status_code == 400
-        real = next((p for p in products if not p["is_demo"]), None)
-        if real:
-            assert client.delete(f"/api/products/{real['id']}").json() == {"ok": True}
-            assert client.get(f"/api/products/{real['id']}").status_code == 404
+def test_each_browser_sees_only_its_own_list(monkeypatch):
+    """Your friend opens the site: they see a clean "Recently checked", not your searches."""
+    monkeypatch.setattr(DarazAdapter, "fetch", lambda self, url, manual_price=None: self.parse(FIXTURE, url))
+    monkeypatch.setattr(DarazAdapter, "search", lambda self, q, host_url=None: [])
+    with TestClient(app) as me, TestClient(app) as friend:
+        mine = me.post("/api/track", json={"url": URL}).json()
+        assert "asol_visitor" in me.cookies
+        mine_ids = [p["id"] for p in me.get("/api/products").json() if not p["is_demo"]]
+        assert mine["id"] in mine_ids
+        friends_ids = [p["id"] for p in friend.get("/api/products").json() if not p["is_demo"]]
+        assert mine["id"] not in friends_ids
+        # The friend can't remove what's in my list either.
+        assert friend.delete(f"/api/products/{mine['id']}").status_code == 404
+
+
+def test_remove_takes_it_off_your_list_only(monkeypatch):
+    monkeypatch.setattr(DarazAdapter, "fetch", lambda self, url, manual_price=None: self.parse(FIXTURE, url))
+    monkeypatch.setattr(DarazAdapter, "search", lambda self, q, host_url=None: [])
+    OWN_URL = "https://www.daraz.com.bd/products/only-in-this-test-i987654321-s222.html"
+    with TestClient(app) as me, TestClient(app) as friend:
+        demo = next(p for p in me.get("/api/products").json() if p["is_demo"])
+        assert me.delete(f"/api/products/{demo['id']}").status_code == 400
+
+        product = me.post("/api/track", json={"url": OWN_URL}).json()
+        friend.post("/api/track", json={"url": OWN_URL})
+        assert me.delete(f"/api/products/{product['id']}").json() == {"ok": True}
+        assert product["id"] not in [p["id"] for p in me.get("/api/products").json()]
+        assert product["id"] in [p["id"] for p in friend.get("/api/products").json()]  # still theirs
+        # Once nobody has it, it's gone for good.
+        assert friend.delete(f"/api/products/{product['id']}").json() == {"ok": True}
+        assert me.get(f"/api/products/{product['id']}").status_code == 404

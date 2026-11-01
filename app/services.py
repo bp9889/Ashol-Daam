@@ -15,7 +15,7 @@ from .adapters import Adapter, AdapterError, ProductData, get_adapter
 from statistics import median
 
 from .market import MATCH_VERSION, MIN_SELLERS, comparable, compare, rank, size_lookups, wants_size
-from .models import MarketCheck, PriceSnapshot, Product
+from .models import Alert, MarketCheck, PriceSnapshot, Product, Visit
 from .verdict import MarketInfo, Point, analyze, money
 
 log = logging.getLogger("asol_dam.services")
@@ -385,3 +385,44 @@ def summary(product: Product) -> dict:
     full["history"] = [h["price"] for h in full["history"]][-60:]
     full["market"] = None
     return full
+
+
+# ---- Each visitor's own "Recently checked" list -------------------------------------------
+
+
+def remember(session: Session, visitor: str, product: Product) -> None:
+    """Put the product on this visitor's list (or move it to the top)."""
+    if product.is_demo:
+        return
+    visit = session.scalar(select(Visit).where(Visit.visitor == visitor, Visit.product_id == product.id))
+    if visit is None:
+        session.add(Visit(visitor=visitor, product_id=product.id))
+    else:
+        visit.added_at = datetime.now(timezone.utc)
+    session.commit()
+
+
+def visitor_products(session: Session, visitor: str) -> list[Product]:
+    """This visitor's checked products, newest first, then the sample products (if any)."""
+    mine = session.scalars(
+        select(Product).join(Visit, Visit.product_id == Product.id)
+        .where(Visit.visitor == visitor).order_by(Visit.added_at.desc())
+    ).all()
+    samples = session.scalars(select(Product).where(Product.is_demo.is_(True)).order_by(Product.id)).all()
+    return list(mine) + list(samples)
+
+
+def forget(session: Session, visitor: str, product: Product) -> bool:
+    """Take a product off this visitor's list. If nobody else has it on their list and nobody has an
+    alert on it, delete it (and its price history) too. False if it wasn't on their list."""
+    visit = session.scalar(select(Visit).where(Visit.visitor == visitor, Visit.product_id == product.id))
+    if visit is None:
+        return False
+    session.delete(visit)
+    session.flush()
+    others = session.scalar(select(Visit.id).where(Visit.product_id == product.id).limit(1))
+    alerts = session.scalar(select(Alert.id).where(Alert.product_id == product.id).limit(1))
+    if others is None and alerts is None:
+        session.delete(product)
+    session.commit()
+    return True

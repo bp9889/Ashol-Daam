@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hmac
 import logging
+import re
+import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -42,6 +44,22 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Asol Dam", version="0.2.0", lifespan=lifespan)
 
 
+VISITOR_COOKIE = "asol_visitor"
+VISITOR_ID = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
+
+
+def visitor_id(request: Request, response: Response) -> str:
+    """An anonymous random id per browser, kept in a cookie, so each visitor's "Recently checked"
+    list is their own. No name, no login, nothing personal."""
+    value = request.cookies.get(VISITOR_COOKIE, "")
+    if not VISITOR_ID.match(value):
+        value = secrets.token_urlsafe(24)
+    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+    response.set_cookie(VISITOR_COOKIE, value, max_age=2 * 365 * 24 * 3600, httponly=True,
+                        samesite="lax", secure=secure)
+    return value
+
+
 class TrackRequest(BaseModel):
     url: str = Field(min_length=10, max_length=2000)
     # Only needed when the store doesn't publish the price of the chosen size/option.
@@ -62,15 +80,16 @@ async def adapter_error_handler(_, exc: AdapterError):
 
 
 @app.post("/api/track")
-def track(body: TrackRequest, session: Session = Depends(get_session)):
+def track(body: TrackRequest, session: Session = Depends(get_session), visitor: str = Depends(visitor_id)):
     product = services.track(session, body.url, body.price)
+    services.remember(session, visitor, product)
     return services.report(product)
 
 
 @app.get("/api/products")
-def list_products(session: Session = Depends(get_session)):
-    products = session.scalars(select(Product).order_by(Product.is_demo, Product.last_checked_at.desc())).all()
-    return [services.summary(p) for p in products]
+def list_products(session: Session = Depends(get_session), visitor: str = Depends(visitor_id)):
+    """Only what THIS browser checked (plus any sample products)."""
+    return [services.summary(p) for p in services.visitor_products(session, visitor)]
 
 
 def _get(session: Session, product_id: int) -> Product:
@@ -96,12 +115,12 @@ def product_details(product_id: int, session: Session = Depends(get_session)):
 
 
 @app.delete("/api/products/{product_id}")
-def delete_product(product_id: int, session: Session = Depends(get_session)):
+def delete_product(product_id: int, session: Session = Depends(get_session), visitor: str = Depends(visitor_id)):
     product = _get(session, product_id)
     if product.is_demo:
         raise HTTPException(status_code=400, detail="Sample products can't be removed. Set SEED_DEMO_DATA=0 to hide them.")
-    session.delete(product)
-    session.commit()
+    if not services.forget(session, visitor, product):
+        raise HTTPException(status_code=404, detail="That product isn't in your list.")
     return {"ok": True}
 
 

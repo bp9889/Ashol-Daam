@@ -646,7 +646,7 @@ function setupForm() {
 
   $("rRemove").addEventListener("click", async () => {
     if (!current || current.is_demo) return;
-    if (!confirm(`Remove “${current.title.slice(0, 60)}” and its price history?`)) return;
+    if (!confirm(`Remove “${current.title.slice(0, 60)}” from your list?`)) return;
     try {
       await api(`/api/products/${current.id}`, { method: "DELETE" });
       current = null;

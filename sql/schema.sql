@@ -62,3 +62,14 @@ CREATE TABLE alerts (
 
 CREATE INDEX ix_alerts_product ON alerts (product_id);
 CREATE INDEX ix_alerts_chat ON alerts (chat_id);
+
+-- "This browser checked this product": keeps each visitor's "Recently checked" list private.
+-- visitor = a random id from a cookie (no name, no login).
+CREATE TABLE visits (
+    id          SERIAL PRIMARY KEY,
+    visitor     VARCHAR(64)  NOT NULL,
+    product_id  INTEGER      NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    added_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT uq_visit_visitor_product UNIQUE (visitor, product_id)
+);
+CREATE INDEX ix_visits_visitor ON visits (visitor);
