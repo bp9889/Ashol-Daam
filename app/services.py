@@ -106,7 +106,7 @@ def check_sizes(session: Session, product: Product, adapter: Adapter, results: l
     return out
 
 
-PAGES_PER_CHECK = 6  # pages the hidden browser opens per seller comparison, at most
+PAGES_PER_CHECK = 4  # pages the hidden browser opens per seller comparison, at most
 
 
 def read_pages(product: Product, adapter: Adapter, results: list, price: float,
@@ -157,22 +157,27 @@ def update_market(session: Session, product: Product, adapter: Adapter, force: b
     current = product.snapshots[-1] if product.snapshots else None
     if current is None:
         return last
-    try:
-        from .market import build_query, exact_query
+    from .market import build_query, exact_query
 
-        results = adapter.search(build_query(product.title), product.url)
-    except AdapterError as exc:
-        log.warning("Couldn't compare %s with other sellers: %s", product.id, exc)
-        return last
+    longer = exact_query(product.title)
+    with ThreadPoolExecutor(max_workers=2) as pool:  # both searches at the same time
+        short_job = pool.submit(adapter.search, build_query(product.title), product.url)
+        long_job = pool.submit(adapter.search, longer, product.url) if longer else None
+        try:
+            results = short_job.result()
+        except AdapterError as exc:
+            log.warning("Couldn't compare %s with other sellers: %s", product.id, exc)
+            return last
+        extra = []
+        if long_job is not None:
+            try:
+                extra = long_job.result()
+            except AdapterError as exc:
+                log.info("Second search for %s failed: %s", product.id, exc)
     # Which words identify this exact accessory, judged against the short search (other covers etc.).
     identity = identity_words(product.title, results)
-    longer = exact_query(product.title)
-    if longer:
-        try:
-            seen_ids = {r.external_id for r in results}
-            results += [r for r in adapter.search(longer, product.url) if r.external_id not in seen_ids]
-        except AdapterError as exc:
-            log.info("Second search for %s failed: %s", product.id, exc)
+    seen_ids = {r.external_id for r in results}
+    results += [r for r in extra if r.external_id not in seen_ids]
     own_fee = None
     if detailed:
         results = check_sizes(session, product, adapter, results, float(current.price), identity)
@@ -239,7 +244,8 @@ def save_snapshot(session: Session, data: ProductData, adapter: Adapter | None =
     return product
 
 
-def track(session: Session, url: str, manual_price: float | None = None) -> Product:
+def track(session: Session, url: str, manual_price: float | None = None,
+          known_price: float | None = None) -> Product:
     """Start tracking a link, or return the existing product if it was checked recently."""
     # Sharing from the Daraz app copies a sentence with the link in it; take just the link.
     found = re.search(r"https?://\S+", url)
@@ -258,7 +264,7 @@ def track(session: Session, url: str, manual_price: float | None = None) -> Prod
             update_market(session, existing, adapter, detailed=False)  # no-op unless the comparison is old
         return existing
     # Quick: the verdict comes back in seconds. The page then asks for details (add_details).
-    return save_snapshot(session, adapter.fetch(url, manual_price), adapter, detailed=False)
+    return save_snapshot(session, adapter.fetch(url, manual_price or known_price), adapter, detailed=False)
 
 
 def refresh(session: Session, product: Product, force: bool = False, detailed: bool = True) -> Product:

@@ -190,8 +190,8 @@ class DarazAdapter(Adapter):
             response = self._get(target)
         response, page_url = self._keep_size(url, response)
         data = self.parse(response.text, page_url)
-        if data.price_unconfirmed:
-            self.confirm_price(data)
+        if data.price_unconfirmed and not manual_price:
+            self.confirm_price(data)  # a search; skipped when we already know the price
         if data.price_unconfirmed and not manual_price:
             self.read_shown_price(data)
         if data.price_unconfirmed and manual_price:

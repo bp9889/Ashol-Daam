@@ -111,5 +111,5 @@ def test_the_longer_search_finds_the_exact_copy(monkeypatch):
             source="daraz", external_id=OWN_ID, url=f"https://www.daraz.com.bd/products/x-{OWN_ID}.html",
             title=OURS, price=299, original_price=650, category="9543"), DarazAdapter(), detailed=False)
         listings = product.market_checks[-1].listings
-    assert queries == ["nothing cmf phone 2 pro cover", "nothing cmf phone 2 pro soft hardness technology eouro silicone"]
+    assert sorted(queries) == ["nothing cmf phone 2 pro cover", "nothing cmf phone 2 pro soft hardness technology eouro silicone"]
     assert [(l["seller"], l["price"]) for l in listings if not l["is_this"]] == [("Seller 1600029726", 263)]

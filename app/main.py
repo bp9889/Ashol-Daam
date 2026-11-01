@@ -64,6 +64,9 @@ class TrackRequest(BaseModel):
     url: str = Field(min_length=10, max_length=2000)
     # Only needed when the store doesn't publish the price of the chosen size/option.
     price: float | None = Field(default=None, gt=0, lt=100_000_000)
+    # The price "Where to buy" already showed for this listing (when you click a seller). Used only
+    # if the page doesn't state the price itself, so we don't open it in a browser again.
+    known_price: float | None = Field(default=None, gt=0, lt=100_000_000)
 
 
 class AlertRequest(BaseModel):
@@ -81,7 +84,7 @@ async def adapter_error_handler(_, exc: AdapterError):
 
 @app.post("/api/track")
 def track(body: TrackRequest, session: Session = Depends(get_session), visitor: str = Depends(visitor_id)):
-    product = services.track(session, body.url, body.price)
+    product = services.track(session, body.url, body.price, known_price=body.known_price)
     services.remember(session, visitor, product)
     return services.report(product)
 

@@ -303,7 +303,7 @@ function renderResult(r, { fresh = true } = {}) {
   }[v.basis] ?? "";
 
   renderNumbers(r);
-  if (animateNext) countUp($("nNow"), v.price, r.currency, 860, 640);
+  if (animateNext) countUp($("nNow"), v.price, r.currency, 440, 420);
 
   const reasons = $("rReasons");
   reasons.textContent = "";
@@ -432,7 +432,9 @@ async function pickSeller(l, row) {
   const flight = flyToReceipt(row.querySelector(".tile"));
   let failed = null;
   try {
-    await checkLink(l.url);  // quick check; renders the receipt (old one tears off, new one prints)
+    // Quick check; renders the receipt (old one tears off, new one prints). A price "Where to buy"
+    // already confirmed is passed along, so the server doesn't open the page in a browser again.
+    await checkLink(l.url, null, l.price_unconfirmed ? null : l.price);
   } catch (err) {
     failed = err;
   }
@@ -466,7 +468,7 @@ function flyToReceipt(tileNode) {
     : ghost.animate([
         { transform: "translate(0, 0) scale(1) rotate(0deg)" },
         { transform: `translate(${dx}px, ${dy}px) scale(${scale}) rotate(-2deg)` },
-      ], { duration: 460, easing: EASE_IN_OUT, fill: "forwards" });
+      ], { duration: 380, easing: EASE_IN_OUT, fill: "forwards" });
   return {
     landed: motion.finished.catch(() => {}),
     // Once the new receipt is on screen, the flying photo hands over to the real one.
@@ -586,7 +588,7 @@ function drawChart(r, { animate = false } = {}) {
 
   // Price rises (5%+ above the lowest price in the 30 days before): sellers often do this before
   // a sale. Marked in red; when the chart draws, they flash as the needle reaches them.
-  const DRAW_MS = 1600;
+  const DRAW_MS = 1000;
   data.forEach((p, i) => {
     const before = data.slice(0, i).filter((q) => q.t >= p.t - 30 * 86400000);
     if (!before.length || p.price <= data[i - 1].price) return;
@@ -750,8 +752,11 @@ async function submitPrice(price, button) {
   }
 }
 
-async function checkLink(url, price = null) {
-  const r = await api("/api/track", { method: "POST", body: JSON.stringify(price ? { url, price } : { url }) });
+async function checkLink(url, price = null, knownPrice = null) {
+  const body = { url };
+  if (price) body.price = price;              // typed by you: always used
+  else if (knownPrice) body.known_price = knownPrice;  // shown in "Where to buy": saves re-reading the page
+  const r = await api("/api/track", { method: "POST", body: JSON.stringify(body) });
   $("priceAsk").hidden = true;
   pendingUrl = null;
   pendingListed = null;

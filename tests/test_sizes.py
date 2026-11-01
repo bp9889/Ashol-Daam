@@ -276,3 +276,25 @@ def test_keeps_the_linked_size_when_daraz_redirects_to_the_main_page(monkeypatch
     data = fake.fetch("https://www.daraz.com.bd/products/i575021547-s12671878402.html")
     assert (data.external_id, data.variant, data.price, data.original_price) == (
         "i575021547-s12671878402", "30 ML Spary", 699, 1200)
+
+
+def test_clicking_a_seller_reuses_the_price_where_to_buy_showed(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.db import SessionLocal
+    from app.main import app
+    from app.models import Product
+
+    fake, real_fetch = adapter(), DarazAdapter.fetch
+    opened = []
+    monkeypatch.setattr(DarazAdapter, "fetch", lambda self, url, manual_price=None: real_fetch(fake, url, manual_price))
+    monkeypatch.setattr(DarazAdapter, "search", lambda self, q, host_url=None: fake.parse_search(SEARCH))
+    monkeypatch.setattr(DarazAdapter, "see_prices", lambda self, urls: opened.append(urls) or {})
+    with TestClient(app) as client, SessionLocal() as session:
+        for old in session.query(Product).filter(Product.external_id == "i575021547-s12671878402"):
+            session.delete(old)
+        session.commit()
+        r = client.post("/api/track", json={"url": URL_30ML, "known_price": 699})
+        assert r.status_code == 200, r.text
+        assert (r.json()["verdict"]["price"], r.json()["verdict"]["original_price"]) == (699, 1200)
+    assert opened == []  # no browser needed

@@ -175,28 +175,28 @@ h1 { font-weight: 700; font-size: 40px; line-height: 1.02; letter-spacing: -0.03
 .slip[data-verdict="real_deal"] { --tone: var(--real); }
 .slip[data-verdict="fair"], .slip[data-verdict="overpriced"] { --tone: var(--fair); }
 /* A new result "prints": the receipt feeds down, the photo drops on, the stamp lands, the lines
-   rise in, and "Where to buy" fills one seller at a time. About 1.5 s; off with reduced motion. */
+   rise in, and "Where to buy" fills one seller at a time. About 1 s; off with reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
-  .slip.is-new { animation: feed 760ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .slip.is-new { animation: feed 440ms cubic-bezier(0.23, 1, 0.32, 1) both; }
   @keyframes feed {
     from { clip-path: inset(0 0 100% 0); transform: translateY(-10px); }
     to   { clip-path: inset(0 0 -40px 0); transform: none; }
   }
-  .slip.is-new .photo { animation: drop 620ms 140ms cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+  .slip.is-new .photo { animation: drop 380ms 60ms cubic-bezier(0.34, 1.4, 0.64, 1) both; }
   @keyframes drop { from { opacity: 0; transform: translateY(-18px) rotate(-9deg); } to { opacity: 1; transform: rotate(-2deg); } }
-  .slip.is-new .stamp { animation: stamp 420ms 560ms cubic-bezier(0.5, 0, 0.75, 0) both; }
+  .slip.is-new .stamp { animation: stamp 300ms 280ms cubic-bezier(0.5, 0, 0.75, 0) both; }
   @keyframes stamp {
     0%   { opacity: 0; transform: scale(1.9) rotate(-12deg); }
     70%  { opacity: 1; transform: scale(0.96) rotate(-3deg); }
     100% { opacity: 1; transform: scale(1) rotate(-3deg); }
   }
-  .slip.is-new .headline, .slip.is-new .basis { animation: rise 420ms 760ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-  .slip.is-new .lines .line { animation: rise 420ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-  .slip.is-new .lines .line:nth-child(1) { animation-delay: 860ms; }
-  .slip.is-new .lines .line:nth-child(2) { animation-delay: 930ms; }
-  .slip.is-new .lines .line:nth-child(3) { animation-delay: 1000ms; }
+  .slip.is-new .headline, .slip.is-new .basis { animation: rise 300ms 380ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+  .slip.is-new .lines .line { animation: rise 300ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+  .slip.is-new .lines .line:nth-child(1) { animation-delay: 440ms; }
+  .slip.is-new .lines .line:nth-child(2) { animation-delay: 480ms; }
+  .slip.is-new .lines .line:nth-child(3) { animation-delay: 520ms; }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  .rank li.enter { animation: slide 460ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: calc(300ms + var(--i, 0) * 70ms); }
+  .rank li.enter { animation: slide 300ms cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: calc(120ms + var(--i, 0) * 40ms); }
   @keyframes slide { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
 }
 /* The stamp stays slightly crooked once it has landed, like a real ink stamp. */
@@ -411,21 +411,21 @@ h1 { font-weight: 700; font-size: 40px; line-height: 1.02; letter-spacing: -0.03
 
 @media (prefers-reduced-motion: no-preference) {
   /* the pen strikes after the prices have counted up, then the note is "written" */
-  .slip.is-new .pen-line path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pen 340ms 1500ms cubic-bezier(0.6, 0, 0.4, 1) forwards; }
+  .slip.is-new .pen-line path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pen 260ms 880ms cubic-bezier(0.77, 0, 0.175, 1) forwards; }
   @keyframes pen { to { stroke-dashoffset: 0; } }
-  .slip.is-new .pen-note { animation: write 520ms 1820ms steps(14, end) both; }
+  .slip.is-new .pen-note { animation: write 380ms 1080ms steps(10, end) both; }
   @keyframes write { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 
   /* the chart line scratches in like a polygraph; rises flash red as the needle passes */
-  .chart .polygraph .line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pen 1600ms linear forwards; }
-  .chart .polygraph .area, .chart .polygraph .old, .chart .polygraph .dot { animation: fadein 400ms 1500ms both; }
+  .chart .polygraph .line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pen 1000ms linear forwards; }
+  .chart .polygraph .area, .chart .polygraph .old, .chart .polygraph .dot { animation: fadein 250ms 900ms both; }
   .chart .polygraph .rise { animation: spike 600ms var(--at, 0ms) cubic-bezier(0.34, 1.6, 0.64, 1) both; transform-box: fill-box; transform-origin: center; }
   @keyframes spike { 0% { opacity: 0; transform: scale(0); } 40% { opacity: 1; transform: scale(2.2); } 100% { opacity: 1; transform: scale(1); } }
   @keyframes fadein { from { opacity: 0; } }
 
   /* switching products: the old receipt tears off and falls away */
   .slip.torn { position: absolute; z-index: 2; margin: 0; pointer-events: none;
-               animation: tear 760ms cubic-bezier(0.55, 0, 0.85, 0.35) forwards; transform-origin: 20% 0; }
+               animation: tear 480ms cubic-bezier(0.55, 0, 0.85, 0.35) forwards; transform-origin: 20% 0; }
   @keyframes tear {
     0%   { transform: none; }
     18%  { transform: translateY(6px) rotate(0.8deg); }
