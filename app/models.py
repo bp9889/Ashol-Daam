@@ -22,7 +22,8 @@ class Product(Base):
     url: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(Text)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    variant: Mapped[str | None] = mapped_column(String(160), nullable=True)  # the chosen size/option, e.g. "30 ML Spray"
+    variant: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    delivery: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)  # standard delivery fee shown on its page  # the chosen size/option, e.g. "30 ML Spray"
     currency: Mapped[str] = mapped_column(String(8), default="BDT")
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -67,6 +68,8 @@ class MarketCheck(Base):
     low_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     high_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     listings: Mapped[list] = mapped_column(JSON, default=list)
+    # False = quick list from search only; True = sellers' pages were opened (sizes, sale prices, delivery)
+    detailed: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Alert(Base):

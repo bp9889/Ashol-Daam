@@ -25,6 +25,7 @@ class ProductData:
     # Listings often come in several sizes/options. `variant` is the one in the link ("30 ML Spray").
     variant: str | None = None
     variant_count: int = 1
+    delivery: float | None = None  # standard delivery fee shown on the page (0 = free), when read
 
 
 @dataclass

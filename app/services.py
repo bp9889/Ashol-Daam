@@ -103,7 +103,7 @@ def check_sizes(session: Session, product: Product, adapter: Adapter, results: l
     return out
 
 
-PAGES_PER_CHECK = 8  # pages the hidden browser opens per seller comparison, at most
+PAGES_PER_CHECK = 6  # pages the hidden browser opens per seller comparison, at most
 
 
 def read_pages(product: Product, adapter: Adapter, results: list, price: float) -> tuple[list, float | None]:
@@ -115,14 +115,17 @@ def read_pages(product: Product, adapter: Adapter, results: list, price: float) 
                and comparable(product.title, price, r, product.variant)]
     need_price = [r for r in matches if r.price_unconfirmed]
     need_fee = sorted((r for r in matches if not r.price_unconfirmed and r.delivery is None), key=lambda r: r.price)
-    urls = [product.url] + [r.url for r in need_price + need_fee][: PAGES_PER_CHECK - 1]
+    own = [product.url] if product.delivery is None else []  # our own fee, unless already known
+    urls = own + [r.url for r in need_price + need_fee][: PAGES_PER_CHECK - len(own)]
+    if not urls:
+        return results, None
     seen = adapter.see_prices(urls)
     if not seen:
         return results, None
     wanted = wants_size(product.title, product.variant)
     out = []
     for r in results:
-        shown = seen.get(r.url) if r.url in urls[1:] else None
+        shown = seen.get(r.url) if r.url in urls[len(own):] else None
         if shown is not None:
             if r.price_unconfirmed and (shown.option is None or wanted(shown.option)):
                 r = replace(r, price=shown.price, original_price=shown.original, price_unconfirmed=False)
@@ -133,13 +136,17 @@ def read_pages(product: Product, adapter: Adapter, results: list, price: float) 
     return out, (mine.delivery if mine else None)
 
 
-def update_market(session: Session, product: Product, adapter: Adapter, force: bool = False) -> MarketCheck | None:
+def update_market(session: Session, product: Product, adapter: Adapter, force: bool = False,
+                  detailed: bool = True) -> MarketCheck | None:
     """Search the store for the same product from other sellers (at most once per MARKET_REFRESH_HOURS).
-    Never raises: if search fails, the verdict simply falls back to what the page says."""
+    Never raises: if search fails, the verdict simply falls back to what the page says.
+
+    detailed=False is the quick version (one search, a few seconds) used when you paste a link;
+    detailed=True also opens sellers' pages: sizes, sale prices and delivery fees (10–30 s)."""
     last = latest_market(product)
     if last and not force and not market_outdated(product):
         age = datetime.now(timezone.utc) - _aware(last.checked_at)
-        if age < timedelta(hours=config.MARKET_REFRESH_HOURS):
+        if age < timedelta(hours=config.MARKET_REFRESH_HOURS) and (last.detailed or not detailed):
             return last
     current = product.snapshots[-1] if product.snapshots else None
     if current is None:
@@ -151,8 +158,14 @@ def update_market(session: Session, product: Product, adapter: Adapter, force: b
     except AdapterError as exc:
         log.warning("Couldn't compare %s with other sellers: %s", product.id, exc)
         return last
-    results = check_sizes(session, product, adapter, results, float(current.price))
-    results, own_fee = read_pages(product, adapter, results, float(current.price))
+    own_fee = None
+    if detailed:
+        results = check_sizes(session, product, adapter, results, float(current.price))
+        results, own_fee = read_pages(product, adapter, results, float(current.price))
+        if own_fee is not None:
+            product.delivery = own_fee
+    if own_fee is None and product.delivery is not None:
+        own_fee = float(product.delivery)
     # Still unsure? Use a price someone confirmed on this site recently.
     known = known_prices(session, {r.external_id for r in results if r.price_unconfirmed}, skip=product.external_id)
     results = [_use_known(r, known[r.external_id]) if r.external_id in known else r for r in results]
@@ -167,13 +180,15 @@ def update_market(session: Session, product: Product, adapter: Adapter, force: b
         low_price=market.low,
         high_price=market.high,
         listings=market.listings,
+        detailed=detailed,
     )
     product.market_checks.append(check)
     session.commit()
     return check
 
 
-def save_snapshot(session: Session, data: ProductData, adapter: Adapter | None = None) -> Product:
+def save_snapshot(session: Session, data: ProductData, adapter: Adapter | None = None,
+                  detailed: bool = True) -> Product:
     """Create the product if it's new, update its details, record today's price,
     compare with other sellers (if an adapter is given) and send any alerts."""
     product = find_product(session, data.source, data.external_id)
@@ -183,6 +198,8 @@ def save_snapshot(session: Session, data: ProductData, adapter: Adapter | None =
     product.url = data.url
     product.title = data.title
     product.image_url = data.image_url or product.image_url
+    if data.delivery is not None:
+        product.delivery = data.delivery
     product.variant = data.variant or ""  # "" = read with size support, has no options; None = saved before it
     product.currency = data.currency
     product.last_checked_at = datetime.now(timezone.utc)
@@ -193,7 +210,7 @@ def save_snapshot(session: Session, data: ProductData, adapter: Adapter | None =
     session.refresh(product)
 
     if adapter is not None:
-        update_market(session, product, adapter)
+        update_market(session, product, adapter, detailed=detailed)
 
     # Tell people whose alerts this new price triggers.
     from . import alerts  # local import avoids a cycle
@@ -221,16 +238,25 @@ def track(session: Session, url: str, manual_price: float | None = None) -> Prod
     stale_size = existing is not None and not existing.is_demo and existing.variant is None and "-s" in existing.external_id
     if existing and recently_checked(existing) and not manual_price and not stale_size:
         if not existing.is_demo:
-            update_market(session, existing, adapter)  # no-op unless the comparison is old
+            update_market(session, existing, adapter, detailed=False)  # no-op unless the comparison is old
         return existing
-    return save_snapshot(session, adapter.fetch(url, manual_price), adapter)
+    # Quick: the verdict comes back in seconds. The page then asks for details (add_details).
+    return save_snapshot(session, adapter.fetch(url, manual_price), adapter, detailed=False)
 
 
-def refresh(session: Session, product: Product, force: bool = False) -> Product:
+def refresh(session: Session, product: Product, force: bool = False, detailed: bool = True) -> Product:
     if product.is_demo or (recently_checked(product) and not force):
         return product
     adapter = get_adapter(product.url)
-    return save_snapshot(session, adapter.fetch(product.url), adapter)
+    return save_snapshot(session, adapter.fetch(product.url), adapter, detailed=detailed)
+
+
+def add_details(session: Session, product: Product) -> Product:
+    """Second step after a quick check: open sellers' pages for sizes, sale prices and delivery fees.
+    Does nothing if that was done recently."""
+    if not product.is_demo:
+        update_market(session, product, get_adapter(product.url), detailed=True)
+    return product
 
 
 def market_info(product: Product, listings: list[dict] | None = None) -> MarketInfo | None:
@@ -263,6 +289,9 @@ def report(product: Product) -> dict:
     ]
     check = latest_market(product)
     listings = with_known_prices(product, check.listings or []) if check is not None else []
+    if product.delivery is not None:
+        listings = [dict(l, delivery=float(product.delivery)) if l.get("is_this") and l.get("delivery") is None else l
+                    for l in listings]
     result = analyze(points, product.currency, market_info(product, listings))
     latest = product.snapshots[-1] if product.snapshots else None
     where = rank(listings) if check is not None else {"ranked": [], "unproven": []}
@@ -274,6 +303,7 @@ def report(product: Product) -> dict:
         "url": product.url,
         "image_url": product.image_url,
         "variant": product.variant or None,
+        "delivery": float(product.delivery) if product.delivery is not None else None,
         "currency": product.currency,
         "is_demo": product.is_demo,
         "in_stock": latest.in_stock if latest else True,
@@ -291,6 +321,7 @@ def report(product: Product) -> dict:
             "low": float(check.low_price) if check.low_price is not None else None,
             "high": float(check.high_price) if check.high_price is not None else None,
             "listings": listings,
+            "detailed": bool(check.detailed),
             # Ranked fresh each time, so tuning the formula in market.py applies to stored data too.
             "where_to_buy": where,
         },

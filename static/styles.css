@@ -352,7 +352,7 @@ h1 { font-weight: 700; font-size: 40px; line-height: 1.02; letter-spacing: -0.03
   .rank > li { padding: 12px 16px; grid-template-columns: 18px 44px minmax(0, 1fr) auto; gap: 2px 10px; }
   .rank .tile { width: 44px; height: 44px; }
   .rank.plain > li { grid-template-columns: 44px minmax(0, 1fr) auto; }
-  .more, .unproven summary, .buy-empty { padding-inline: 16px; }
+  .more, .unproven summary, .buy-empty, .buy-loading { padding-inline: 16px; }
   .unproven > .small { padding-inline: 16px; }
   .foot { padding-inline: 16px; }
   .recent-list button { grid-template-columns: 36px minmax(0, 1fr) auto; }
@@ -370,3 +370,7 @@ h1 { font-weight: 700; font-size: 40px; line-height: 1.02; letter-spacing: -0.03
 .check-it:hover { background: var(--ink); color: var(--paper); }
 .rank .p small.reg { display: block; font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
 .rank .p small.fee { display: block; font-family: var(--mono); font-size: 10.5px; font-weight: 400; color: var(--muted); }
+.buy-loading { margin: 0; padding: 12px 32px; border-bottom: 1px solid var(--rule); color: var(--muted); font-size: 11px; letter-spacing: .04em; }
+.buy-loading::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; background: var(--fair); vertical-align: middle; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .buy-loading::before { animation: none; } }

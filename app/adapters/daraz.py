@@ -36,7 +36,8 @@ CURRENCY_BY_HOST = {
     "daraz.com.np": "NPR",
 }
 
-ID_PATTERN = re.compile(r"-i(\d+)(?:-s(\d+))?\.html", re.IGNORECASE)
+# "…-i123-s456.html", or with no name before the id: "/products/i123-s456.html"
+ID_PATTERN = re.compile(r"(?<=[-/])i(\d+)(?:-s(\d+))?\.html", re.IGNORECASE)
 NUMBER_PATTERN = re.compile(r"\d[\d,]*(?:\.\d+)?")
 
 HEADERS = {
@@ -187,7 +188,8 @@ class DarazAdapter(Adapter):
                     "address from the address bar instead."
                 )
             response = self._get(target)
-        data = self.parse(response.text, str(response.url))
+        response, page_url = self._keep_size(url, response)
+        data = self.parse(response.text, page_url)
         if data.price_unconfirmed:
             self.confirm_price(data)
         if data.price_unconfirmed and not manual_price:
@@ -202,12 +204,35 @@ class DarazAdapter(Adapter):
             # Better to ask than to guess: a wrong price would also spoil the product's history.
             # The page's price is the regular price. It's what you pay when no sale is running, and
             # the crossed-out price when one is. The page looks the same either way, so we ask.
-            listed = data.original_price or data.price
+            listed = data.original_price or data.price or None
             what = f"“{data.variant}”" if data.variant and data.variant_count > 1 else "this product"
-            message = (f"Daraz lists {what} at ৳{listed:,.0f}, but its page doesn't say whether a sale "
-                       "price is running. Is that the price you see on Daraz?")
+            if listed:
+                message = (f"Daraz lists {what} at ৳{listed:,.0f}, but its page doesn't say whether a sale "
+                           "price is running. Is that the price you see on Daraz?")
+            else:
+                message = f"Daraz's page doesn't show the price of {what}. Type the price you see on Daraz."
             raise PriceNeeded(message, variant=data.variant, old_price=listed)
         return data
+
+    def _keep_size(self, asked_url: str, response: httpx.Response) -> tuple[httpx.Response, str]:
+        """Daraz sometimes redirects a link for one size (…-i123-s456.html) to the product's main page
+        (…-i123.html), dropping the size. Ask again with the size in the address; if Daraz drops it
+        again, still read the page as the size that was asked for."""
+        asked = ID_PATTERN.search(urlparse(asked_url).path)
+        landed = str(response.url)
+        got = ID_PATTERN.search(urlparse(landed).path)
+        if not asked or not asked.group(2) or not got or got.group(1) != asked.group(1) or got.group(2) == asked.group(2):
+            return response, landed
+        parsed = urlparse(landed)
+        with_size = f"https://{parsed.hostname}" + ID_PATTERN.sub(
+            f"i{asked.group(1)}-s{asked.group(2)}.html", parsed.path)
+        try:
+            again = self._get(with_size)
+            if ID_PATTERN.search(urlparse(str(again.url)).path).group(2) == asked.group(2):
+                return again, str(again.url)
+        except (AdapterError, AttributeError):
+            pass
+        return response, with_size
 
     def product_link_in(self, html: str) -> str | None:
         """Find the real product page link inside a share-link bridge page."""
@@ -234,6 +259,7 @@ class DarazAdapter(Adapter):
             return False
         data.price = seen.price
         data.original_price = seen.original
+        data.delivery = seen.delivery
         data.price_unconfirmed = False
         return True
 
@@ -386,6 +412,10 @@ class DarazAdapter(Adapter):
             nonlocal listed_price, discount_pct, title
             if not isinstance(layer, dict):
                 return
+            title = title or layer.get("pdt_name")
+            shown_sku = str(layer.get("pdt_simplesku") or "")
+            if sku_id and shown_sku and shown_sku != str(sku_id):
+                return  # the page is showing a different size; its price isn't ours
             listed_price = listed_price or to_number(layer.get("pdt_price"))
             discount_pct = discount_pct or to_number(layer.get("pdt_discount"))  # "-33%" -> 33
             title = title or layer.get("pdt_name")
@@ -456,7 +486,8 @@ class DarazAdapter(Adapter):
                     offers = node.get("offers") or {}
                     if isinstance(offers, list):
                         offers = offers[0] if offers else {}
-                    price = price or to_number(offers.get("price")) or to_number(offers.get("lowPrice"))
+                    if not (sku_id and variant_count > 1):  # for one size of many, it's not our price
+                        price = price or to_number(offers.get("price")) or to_number(offers.get("lowPrice"))
                     availability = str(offers.get("availability", ""))
                     if "OutOfStock" in availability:
                         in_stock = False
@@ -469,6 +500,9 @@ class DarazAdapter(Adapter):
             tag = soup.find("meta", property="og:image")
             image = _absolute_image(tag.get("content")) if tag else None
 
+        if price is None and sku_id and variant_count > 1 and title and not (
+                any(marker in lowered for marker in BLOCK_MARKERS) or "captcha" in lowered):
+            price, price_unconfirmed = 0.0, True  # one size of many, price unknown: confirmed in fetch()
         if price is None:
             if any(marker in lowered for marker in BLOCK_MARKERS) or "captcha" in lowered:
                 raise BlockedError(

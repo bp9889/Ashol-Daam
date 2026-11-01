@@ -85,8 +85,14 @@ def get_product(product_id: int, session: Session = Depends(get_session)):
     product = _get(session, product_id)
     if not product.is_demo and services.market_outdated(product):
         # Seller list saved with older rules (e.g. before photos): rebuild it now. One search request.
-        services.update_market(session, product, get_adapter(product.url))
+        services.update_market(session, product, get_adapter(product.url), detailed=False)
     return services.report(product)
+
+
+@app.post("/api/products/{product_id}/details")
+def product_details(product_id: int, session: Session = Depends(get_session)):
+    """Step two of a check: sizes, sale prices and delivery fees from sellers' pages (10–30 s)."""
+    return services.report(services.add_details(session, _get(session, product_id)))
 
 
 @app.delete("/api/products/{product_id}")
@@ -101,7 +107,7 @@ def delete_product(product_id: int, session: Session = Depends(get_session)):
 
 @app.post("/api/products/{product_id}/refresh")
 def refresh_product(product_id: int, session: Session = Depends(get_session)):
-    return services.report(services.refresh(session, _get(session, product_id)))
+    return services.report(services.refresh(session, _get(session, product_id), detailed=False))
 
 
 # ---- Phase 2 ---------------------------------------------------------------

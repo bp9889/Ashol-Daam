@@ -33,7 +33,7 @@ CHOSEN_OPTION = ".sku-variable-name-selected"
 DELIVERY_FEE = ".delivery-option-item__shipping-fee"  # "Free" or "৳ 60" (first = standard delivery)
 ROBOT_CHECK = "#nc_1_n1z, .nc-container, #baxia-dialog-content, iframe[src*='punish']"
 SKIP = {"image", "font", "media"}
-AT_ONCE = 3
+AT_ONCE = 4
 NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 
 
@@ -219,7 +219,7 @@ async def _read_page(page, url: str) -> SeenPrice | None:
     fee = page.locator(DELIVERY_FEE).first
     try:
         await page.evaluate("window.scrollBy(0, 400)")  # in case the delivery box loads when seen
-        await fee.wait_for(timeout=8000)  # the delivery box loads a moment after the price
+        await fee.wait_for(timeout=5000)  # the delivery box loads a moment after the price
         text = (await fee.inner_text()).strip()
         delivery = 0.0 if "free" in text.lower() else _number(text)
     except Exception:

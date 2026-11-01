@@ -206,7 +206,7 @@ def test_one_paste_is_enough(monkeypatch):
 
     mine_url = f"https://www.daraz.com.bd/products/x-{OTHER_ID}.html"
     other_30ml = "https://www.daraz.com.bd/products/100ml-50ml-30ml-15ml-6ml-3ml-i575021547-s12671878402.html"
-    shown = {mine_url: SeenPrice(999, 1200, "30ML spray"), other_30ml: SeenPrice(699, 1200, "30 ML Spary")}
+    shown = {mine_url: SeenPrice(999, 1200, "30ML spray", 90), other_30ml: SeenPrice(699, 1200, "30 ML Spary", 0)}
     asked = []
 
     def see(self, urls):
@@ -235,9 +235,44 @@ def test_one_paste_is_enough(monkeypatch):
         session.commit()
         r = client.post("/api/track", json={"url": mine_url})
         assert r.status_code == 200, r.text
+        assert r.json()["market"]["detailed"] is False  # quick answer first
+        r = client.post(f"/api/products/{r.json()['id']}/details")  # then sellers' pages
+        assert r.status_code == 200, r.text
         r = r.json()
+        assert r["market"]["detailed"] is True
     assert (r["verdict"]["price"], r["verdict"]["original_price"]) == (999, 1200)
     other = next(l for l in r["market"]["listings"] if l["id"] == "i575021547-s12671878402")
     assert (other["price"], other["original_price"], other["price_unconfirmed"]) == (699, 1200, False)
     assert "৳699" in " ".join(r["verdict"]["reasons"])
     assert [mine_url] in asked  # our own price was read from the page too
+    assert r["delivery"] == 90  # shown on the receipt: + ৳90 delivery
+    assert other["delivery"] == 0
+
+
+def test_keeps_the_linked_size_when_daraz_redirects_to_the_main_page(monkeypatch):
+    """Seen live on 1 Nov 2026: a link to the 30 ML option was redirected to the product's main page,
+    which shows the default size (6 ML, ৳240). The 30 ML must not be saved at ৳240."""
+    from app.browser import SeenPrice
+
+    main_page = "https://www.daraz.com.bd/products/vampire-blood-i575021547.html"
+    default_page = PAGE.replace("৳ 1,200", "৳ 240").replace("12671878402,", "12632959914,")
+
+    def handler(request):
+        if "/catalog/" in request.url.path:
+            return httpx.Response(200, text=SEARCH)
+        if "-s" in request.url.path:  # any link with a size goes to the main page, size dropped
+            return httpx.Response(302, headers={"Location": main_page})
+        return httpx.Response(200, text=default_page)
+
+    fake = DarazAdapter(client=httpx.Client(transport=httpx.MockTransport(handler)))
+    with pytest.raises(PriceNeeded) as asked:
+        fake.fetch("https://www.daraz.com.bd/products/i575021547-s12671878402.html")
+    assert asked.value.variant == "30 ML Spary" and asked.value.old_price is None  # never "৳240"
+
+    # With the hidden browser, the page for the 30 ML link shows ৳699 (old ৳1,200).
+    wanted_url = "https://www.daraz.com.bd/products/vampire-blood-i575021547-s12671878402.html"
+    monkeypatch.setattr(DarazAdapter, "see_prices",
+                        lambda self, urls: {u: SeenPrice(699, 1200, "30 ML Spary", 0) for u in urls if u == wanted_url})
+    data = fake.fetch("https://www.daraz.com.bd/products/i575021547-s12671878402.html")
+    assert (data.external_id, data.variant, data.price, data.original_price) == (
+        "i575021547-s12671878402", "30 ML Spary", 699, 1200)

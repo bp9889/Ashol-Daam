@@ -9,7 +9,8 @@ CREATE TABLE products (
     url              TEXT         NOT NULL,
     title            TEXT         NOT NULL,
     image_url        TEXT,
-    variant          VARCHAR(160),                   -- chosen size/option, e.g. '30 ML Spray' 
+    variant          VARCHAR(160),                   -- chosen size/option, e.g. '30 ML Spray'
+    delivery         NUMERIC(10,2),                  -- standard delivery fee on its page (0 = free) 
     currency         VARCHAR(8)   NOT NULL DEFAULT 'BDT',
     is_demo          BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -39,7 +40,8 @@ CREATE TABLE market_checks (
     median_price  NUMERIC(12,2),
     low_price     NUMERIC(12,2),
     high_price    NUMERIC(12,2),
-    listings      JSON          NOT NULL            -- the matching listings (seller, title, price, url)
+    listings      JSON          NOT NULL,           -- the matching listings (seller, title, price, url)
+    detailed      BOOLEAN       NOT NULL DEFAULT FALSE -- sellers' pages opened (sizes, sale prices, delivery)
 );
 
 CREATE INDEX ix_market_product_time ON market_checks (product_id, checked_at);

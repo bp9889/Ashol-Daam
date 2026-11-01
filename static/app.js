@@ -193,6 +193,34 @@ function headlineWithoutLabel(headline, verdict) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+// ---------- step two: sellers' pages (sizes, sale prices, delivery fees) ----------
+// The verdict comes back in seconds; "Where to buy" and the delivery fee follow a moment later.
+const detailsAsked = new Set();
+
+function detailsPending(r) {
+  return Boolean(r && !r.is_demo && r.market && !r.market.detailed && !detailsAsked.has(`done:${r.id}`));
+}
+
+async function loadDetails(r) {
+  if (!detailsPending(r) || detailsAsked.has(r.id)) return;
+  detailsAsked.add(r.id);
+  $("rBuyLoading").hidden = false;
+  try {
+    const full = await api(`/api/products/${r.id}/details`, { method: "POST" });
+    detailsAsked.add(`done:${r.id}`);
+    if (current && current.id === r.id) {
+      const y = window.scrollY;
+      renderResult(full, { fresh: false });
+      window.scrollTo(0, y);
+    }
+  } catch (err) {
+    detailsAsked.add(`done:${r.id}`);  // keep the quick result; don't keep retrying
+    if (current && current.id === r.id) renderNumbers(current);
+  } finally {
+    if (!current || current.id === r.id) $("rBuyLoading").hidden = true;
+  }
+}
+
 function renderResult(r, { fresh = true } = {}) {
   current = r;
   showAllSellers = false;
@@ -241,6 +269,8 @@ function renderResult(r, { fresh = true } = {}) {
   $("rFoot").textContent = `Checked by Asol Dam, ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(r.last_checked_at || Date.now()))}`;
 
   renderWhereToBuy(r);
+  $("rBuyLoading").hidden = !(detailsPending(r) && detailsAsked.has(r.id));
+  loadDetails(r);
   renderHistory(r);
   renderAlert(r);
   renderList();
@@ -251,10 +281,14 @@ function renderNumbers(r) {
   const c = r.currency;
 
   $("nNow").textContent = money(v.price, c);
-  $("nNowSub").textContent = v.original_price ? `Old price shown: ${money(v.original_price, c)}` : "No old price shown";
+  // What you actually pay: price + this seller's delivery fee (when we've read it from the page).
+  $("nNowSub").textContent = r.delivery > 0
+    ? `+ ${money(r.delivery, c)} delivery, ${money(v.price + r.delivery, c)} in total`
+    : r.delivery === 0 ? "Free delivery" : detailsPending(r) ? "Reading the delivery fee…" : "Delivery fee not shown";
 
   $("nClaim").textContent = v.claimed_off_pct ? `${Math.round(v.claimed_off_pct)}% off` : "No discount";
-  $("nClaimSub").textContent = v.claimed_off_pct ? "The label on Daraz" : "Daraz isn't showing a discount";
+  $("nClaimSub").textContent = v.original_price ? `Old price shown: ${money(v.original_price, c)}`
+    : "Daraz isn't showing a discount";
 
   const real = v.real_off_pct;
   const ref = money(v.usual_price, c);
@@ -587,7 +621,7 @@ function setupForm() {
     showMessage("Reading the price and comparing sellers on Daraz…");
     $("priceAsk").hidden = true;
     // Sizes' sale prices are read by opening sellers' pages, which takes a little longer.
-    const slow = setTimeout(() => showMessage("Opening other sellers' pages to read the price of your size. This can take up to half a minute…"), 5000);
+    const slow = setTimeout(() => showMessage("Reading the price of your size from Daraz…"), 4000);
     try {
       await checkLink(url);
     } catch (err) {
