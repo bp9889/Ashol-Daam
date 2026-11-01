@@ -26,6 +26,7 @@ class ProductData:
     variant: str | None = None
     variant_count: int = 1
     delivery: float | None = None  # standard delivery fee shown on the page (0 = free), when read
+    category: str | None = None    # the store's category id for this product (most specific level)
 
 
 @dataclass
@@ -46,6 +47,8 @@ class Listing:
     overseas: bool = False        # ships from abroad (slow delivery)
     free_shipping: bool = False
     delivery: float | None = None # standard delivery fee read from the page (0 = free); None = unknown
+    # The store's category path, broadest first, e.g. ["2", "9536", "9543"] (Mobile accessories > Phone cases)
+    categories: tuple[str, ...] = ()
     image: str | None = None      # product photo for this listing
     # Set when this listing was narrowed to one size/option (search shows only the cheapest one).
     size_checked: bool = False

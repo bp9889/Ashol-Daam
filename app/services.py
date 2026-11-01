@@ -14,7 +14,8 @@ from . import config
 from .adapters import Adapter, AdapterError, ProductData, get_adapter
 from statistics import median
 
-from .market import MATCH_VERSION, MIN_SELLERS, comparable, compare, rank, size_lookups, wants_size
+from .market import (MATCH_VERSION, MIN_SELLERS, category_path, comparable, compare, identity_words, rank,
+                     size_lookups, wants_size)
 from .models import Alert, MarketCheck, PriceSnapshot, Product, Visit
 from .verdict import MarketInfo, Point, analyze, money
 
@@ -76,9 +77,11 @@ def _use_known(listing, snapshot: PriceSnapshot):
                    confirmed_at=_aware(snapshot.captured_at).isoformat())
 
 
-def check_sizes(session: Session, product: Product, adapter: Adapter, results: list, price: float) -> list:
+def check_sizes(session: Session, product: Product, adapter: Adapter, results: list, price: float,
+                identity: list[str] | None = None) -> list:
     """Replace multi-size listings with the option for our size (see market.size_lookups)."""
-    picks = size_lookups(product.title, price, product.external_id, results, product.variant)
+    picks = size_lookups(product.title, price, product.external_id, results, product.variant,
+                         category_path(product.external_id, results, product.category), identity)
     if not picks:
         return results
     wanted = wants_size(product.title, product.variant)
@@ -106,13 +109,16 @@ def check_sizes(session: Session, product: Product, adapter: Adapter, results: l
 PAGES_PER_CHECK = 6  # pages the hidden browser opens per seller comparison, at most
 
 
-def read_pages(product: Product, adapter: Adapter, results: list, price: float) -> tuple[list, float | None]:
+def read_pages(product: Product, adapter: Adapter, results: list, price: float,
+               identity: list[str] | None = None) -> tuple[list, float | None]:
     """Open the pages worth opening in the hidden browser, all in one go:
     our own page (its delivery fee), sizes whose sale price isn't in the page data, and the
     cheapest matching sellers whose delivery fee we don't know. Returns (listings, our fee)."""
     own_item = product.external_id.split("-")[0]
+    path = category_path(product.external_id, results, product.category)
+    identity = identity_words(product.title, results) if identity is None else identity
     matches = [r for r in results if r.url and r.external_id.split("-")[0] != own_item
-               and comparable(product.title, price, r, product.variant)]
+               and comparable(product.title, price, r, product.variant, path, identity)]
     need_price = [r for r in matches if r.price_unconfirmed]
     need_fee = sorted((r for r in matches if not r.price_unconfirmed and r.delivery is None), key=lambda r: r.price)
     own = [product.url] if product.delivery is None else []  # our own fee, unless already known
@@ -152,16 +158,25 @@ def update_market(session: Session, product: Product, adapter: Adapter, force: b
     if current is None:
         return last
     try:
-        from .market import build_query
+        from .market import build_query, exact_query
 
         results = adapter.search(build_query(product.title), product.url)
     except AdapterError as exc:
         log.warning("Couldn't compare %s with other sellers: %s", product.id, exc)
         return last
+    # Which words identify this exact accessory, judged against the short search (other covers etc.).
+    identity = identity_words(product.title, results)
+    longer = exact_query(product.title)
+    if longer:
+        try:
+            seen_ids = {r.external_id for r in results}
+            results += [r for r in adapter.search(longer, product.url) if r.external_id not in seen_ids]
+        except AdapterError as exc:
+            log.info("Second search for %s failed: %s", product.id, exc)
     own_fee = None
     if detailed:
-        results = check_sizes(session, product, adapter, results, float(current.price))
-        results, own_fee = read_pages(product, adapter, results, float(current.price))
+        results = check_sizes(session, product, adapter, results, float(current.price), identity)
+        results, own_fee = read_pages(product, adapter, results, float(current.price), identity)
         if own_fee is not None:
             product.delivery = own_fee
     if own_fee is None and product.delivery is not None:
@@ -172,7 +187,7 @@ def update_market(session: Session, product: Product, adapter: Adapter, force: b
     market = compare(product.title, float(current.price), product.external_id, results,
                      variant=product.variant,
                      own_original=float(current.original_price) if current.original_price else None,
-                     own_delivery=own_fee)
+                     own_delivery=own_fee, category=product.category, identity=identity)
     check = MarketCheck(
         query=market.query,
         seller_count=market.count,
@@ -200,6 +215,8 @@ def save_snapshot(session: Session, data: ProductData, adapter: Adapter | None =
     product.image_url = data.image_url or product.image_url
     if data.delivery is not None:
         product.delivery = data.delivery
+    if data.category:
+        product.category = data.category
     product.variant = data.variant or ""  # "" = read with size support, has no options; None = saved before it
     product.currency = data.currency
     product.last_checked_at = datetime.now(timezone.utc)

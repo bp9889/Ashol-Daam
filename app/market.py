@@ -88,7 +88,24 @@ def build_query(title: str) -> str:
     hide the very listings we want. Sizes are checked afterwards in `same_model`."""
     text = re.sub(r"\d+(?:\.\d+)?\s*%", " ", title)
     words = [w for w in key_words(text, limit=20) if not SIZE_WORD.fullmatch(w)]
-    return " ".join(words[:SEARCH_WORDS])
+    query = words[:SEARCH_WORDS]
+    # Add what kind of item it is ("cover"), so the search returns covers, not every accessory
+    # for that phone.
+    kind = next((w for w in tokens(title) if any(w in names for names in KINDS.values())), None)
+    if kind and kind not in query:
+        query.append(kind)
+    return " ".join(query)
+
+
+def exact_query(title: str) -> str | None:
+    """A longer search, for accessories: finds other sellers of exactly this item ("… soft high
+    hardness technology eouro silicone back cover"), which the short search can miss."""
+    if not kinds_in(title):
+        return None
+    words = [w for w in key_words(re.sub(r"\d+(?:\.\d+)?\s*%", " ", title), limit=40)
+             if not SIZE_WORD.fullmatch(w)]
+    query = " ".join(words[:10])
+    return query if query != build_query(title) else None
 
 
 @dataclass
@@ -126,6 +143,92 @@ def same_model(our_title: str, query_words: list[str], other_title: str) -> bool
     return (ours & VARIANTS) == (theirs & VARIANTS)
 
 
+# Kinds of item. Titles for accessories repeat the phone's name ("Nothing CMF Phone 2 Pro Camera Lens
+# Protector"), so the model words match; the kind of item must match too. Words in one group mean
+# the same kind; a listing is a different product if it shares no kind with ours.
+KINDS = {
+    # Words that clearly name a kind of item. Ambiguous ones are left out on purpose: "glass" (phones
+    # say "Gorilla Glass"), "band" ("Mi Band 8"), "skin" (skin care), "replacement" (warranty text).
+    "case": {"case", "cover", "pouch", "bumper", "backcover", "casing"},
+    "protector": {"protector", "tempered", "film", "guard"},
+    "charger": {"charger", "adapter", "adaptor"},
+    "cable": {"cable", "cord"},
+    "strap": {"strap", "belt"},
+    "holder": {"holder", "stand", "mount", "tripod"},
+    "sticker": {"sticker", "decal"},
+    "refill": {"refill", "cartridge"},
+}
+
+
+def kinds_in(title: str) -> set[str]:
+    words = set(tokens(title))
+    return {kind for kind, names in KINDS.items() if words & names}
+
+
+def same_kind(ours: str, theirs: str) -> bool:
+    """A case is never compared with a screen protector. A product named without any accessory word
+    (a phone, earbuds) is never compared with accessories for it ("case for Redmi Buds 6")."""
+    a, b = kinds_in(ours), kinds_in(theirs)
+    if a and b:
+        return bool(a & b)
+    return a == b  # both plain products, or both... (one side an accessory, the other not -> False)
+
+
+PACK = re.compile(r"(?:pack|set|combo|box)\s*of\s*(\d+)|(\d+)\s*(?:pcs|pc|pieces|piece|pack|packs|pk|units)\b")
+
+
+def pack_size(title: str) -> int:
+    """'2 pcs', 'pack of 3', '3 Pack' -> 2, 3, 3. Anything else is 1."""
+    match = PACK.search(title.lower())
+    if not match:
+        return 1
+    count = int(match.group(1) or match.group(2))
+    return count if 1 <= count <= 100 else 1
+
+
+IDENTITY_WORDS = 4      # the rarest words of our title that identify the accessory itself
+COMMON_SHARE = 0.5      # words in at least half the search results don't identify anything
+
+
+def identity_words(title: str, results: list[Listing]) -> list[str]:
+    """For accessories only. Every result for "Nothing CMF Phone 2 Pro cover" repeats the phone's
+    name, so those words can't tell one cover from another. The words that do are the rare ones in
+    our title ("eouro", "hardness"). Returns up to 4 of them, rarest first (or [] = no such check)."""
+    if not kinds_in(title) or len(results) < 5:
+        return []
+    docs = [set(tokens(r.title)) for r in results]
+    count = {w: sum(1 for d in docs if w in d) for w in tokens(title)}
+    kind_words = set().union(*KINDS.values())
+    rare = [w for w in tokens(title)
+            if w not in NOISE and w not in kind_words and len(w) > 1 and not SIZE_WORD.fullmatch(w)
+            and count[w] / len(docs) < COMMON_SHARE]
+    rare.sort(key=lambda w: count[w])
+    return rare[:IDENTITY_WORDS] if len(rare) >= 2 else []
+
+
+def same_identity(identity: list[str], other_title: str) -> bool:
+    """At least half of our identifying words appear in the other title."""
+    if not identity:
+        return True
+    words = set(tokens(other_title))
+    return sum(1 for w in identity if w in words) >= (len(identity) + 1) // 2
+
+
+def same_category(ours: tuple[str, ...], theirs: tuple[str, ...], strong_match: bool) -> bool:
+    """Same Daraz category (most specific level). Sellers sometimes file the same thing one level
+    off (earbuds under 'Headphones' vs 'Wireless earbuds'); that's allowed only with an exact title
+    match, never for the same phone's other accessories."""
+    if not ours or not theirs:
+        return True  # unknown: the other checks decide
+    if ours[-1] == theirs[-1]:
+        return True
+    if not strong_match:
+        return False
+    if len(ours) == 1 or len(theirs) == 1:
+        return True  # we don't know the level above, so the exact title match decides
+    return ours[-2] == theirs[-2]
+
+
 def sizes_in(text: str | None) -> set[str]:
     """Sizes mentioned in a title or option name: "50ml", "1.8l", "2200w"…"""
     return {w for w in tokens(text or "") if SIZE_WORD.fullmatch(w)}
@@ -147,7 +250,8 @@ MAX_SIZE_LOOKUPS = 5  # multi-size listings we open per check, to find the price
 
 
 def size_lookups(title: str, price: float, own_id: str, results: list[Listing],
-                 variant: str | None = None) -> list[Listing]:
+                 variant: str | None = None, category: tuple[str, ...] = (),
+                 identity: list[str] | None = None) -> list[Listing]:
     """Listings of the same product that sell SEVERAL sizes (or don't say which). Search shows them
     at the price of their cheapest size, so we must open them to see the price of ours."""
     size = our_size(title, variant)
@@ -166,6 +270,12 @@ def size_lookups(title: str, price: float, own_id: str, results: list[Listing],
             continue  # even its cheapest size costs far more
         if similarity(words, r.title) < MIN_MATCH or not same_model(title, words, r.title):
             continue
+        if not same_kind(title, r.title) or pack_size(title) != pack_size(r.title):
+            continue
+        if not same_identity(identity_words(title, results) if identity is None else identity, r.title):
+            continue
+        if not same_category(category, r.categories, strong_match=similarity(words, r.title) >= 1.0):
+            continue
         picks.append(r)
     # Titles that mention our size first, then the closest matches.
     picks.sort(key=lambda r: (size not in sizes_in(r.title), -similarity(words, r.title)))
@@ -178,10 +288,18 @@ def wants_size(title: str, variant: str | None = None):
     return lambda option: bool(size) and size in sizes_in(option)
 
 
-def comparable(title: str, price: float, r: Listing, variant: str | None = None) -> bool:
-    """Is listing `r` the same product, in the same size, at a believable price?"""
+def comparable(title: str, price: float, r: Listing, variant: str | None = None,
+               category: tuple[str, ...] = (), identity: list[str] | None = None) -> bool:
+    """Is listing `r` the same product, of the same kind, in the same category, size and pack size,
+    at a believable price?"""
     size = our_size(title, variant)
     words = match_words(title)
+    if not same_kind(title, r.title) or pack_size(title) != pack_size(r.title):
+        return False
+    if not same_identity(identity or [], r.title):
+        return False
+    if not same_category(category, r.categories, strong_match=similarity(words, r.title) >= 1.0):
+        return False
     lo, hi = price * PRICE_BAND[0], price * PRICE_BAND[1]
     if r.size_checked:
         # Already narrowed to our size by opening the listing. A regular (not sale) price can
@@ -197,20 +315,38 @@ def comparable(title: str, price: float, r: Listing, variant: str | None = None)
     return True
 
 
+def category_path(own_id: str, results: list[Listing], category: str | None = None) -> tuple[str, ...]:
+    """Our category path, from our own listing in the search results, or from any result filed
+    under our category id (read from our product page)."""
+    own_item = own_id.split("-")[0]
+    for r in results:
+        if r.external_id.split("-")[0] == own_item and r.categories:
+            return r.categories
+    if category:
+        for r in results:
+            if r.categories and r.categories[-1] == category:
+                return r.categories
+        return (category,)
+    return ()
+
+
 def compare(title: str, price: float, own_id: str, results: list[Listing],
             variant: str | None = None, own_original: float | None = None,
-            own_delivery: float | None = None) -> Market:
+            own_delivery: float | None = None, category: str | None = None,
+            identity: list[str] | None = None) -> Market:
     """Other sellers of the same product AND the same size. A listing that offers several sizes
     shows the price of its cheapest one, so it only counts if it clearly sells just our size."""
     query = build_query(title)
     own_item = own_id.split("-")[0]  # "i123-s456" -> "i123"
 
+    path = category_path(own_id, results, category)
+    identity = identity_words(title, results) if identity is None else identity
     matches, own = [], None
     for r in results:
         if r.external_id.split("-")[0] == own_item:
             own = own or r  # kept for the "where to buy" ranking, not for the price comparison
             continue
-        if comparable(title, price, r, variant):
+        if comparable(title, price, r, variant, path, identity):
             matches.append(r)
 
     matches.sort(key=lambda r: (r.price_unconfirmed, r.price))
@@ -237,7 +373,7 @@ def compare(title: str, price: float, own_id: str, results: list[Listing],
 
 MAX_LISTINGS = 15
 # Bump when matching changes, so saved seller lists made with older rules get rebuilt.
-MATCH_VERSION = 10
+MATCH_VERSION = 11
 
 
 def _listing_dict(r: Listing, is_this: bool = False) -> dict:

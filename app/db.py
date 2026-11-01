@@ -25,7 +25,7 @@ def get_session():
 # Columns added after the first release. create_all() makes new tables but never changes
 # existing ones, so older databases get these added here (works on SQLite and PostgreSQL).
 ADDED_COLUMNS = {
-    "products": {"variant": "VARCHAR(160)", "delivery": "NUMERIC(10,2)"},
+    "products": {"variant": "VARCHAR(160)", "delivery": "NUMERIC(10,2)", "category": "VARCHAR(32)"},
     "market_checks": {"detailed": "BOOLEAN DEFAULT FALSE"},
 }
 

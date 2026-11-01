@@ -385,6 +385,7 @@ class DarazAdapter(Adapter):
                     overseas=str(item.get("location", "")).strip().lower() == "overseas",
                     free_shipping=any("freeshipping" in b for b in badges),
                     image=_absolute_image(item.get("image")),
+                    categories=tuple(str(c) for c in item.get("categories") or [] if c is not None),
                 )
             )
         return listings
@@ -399,6 +400,7 @@ class DarazAdapter(Adapter):
         image: str | None = None
         variant: str | None = None
         variant_count = 1
+        category: str | None = None
         price: float | None = None
         original: float | None = None
         in_stock = True
@@ -437,6 +439,7 @@ class DarazAdapter(Adapter):
                 if isinstance(stock, (int, float)):
                     in_stock = stock > 0
                 image = image or _absolute_image(sku.get("image"))
+                category = str(sku.get("categoryId") or "") or None
             product = _find_key(module, "product")
             if isinstance(product, dict):
                 title = product.get("title") or title
@@ -527,6 +530,7 @@ class DarazAdapter(Adapter):
             price_unconfirmed=price_unconfirmed,
             variant=variant,
             variant_count=variant_count,
+            category=category,
         )
 
     @staticmethod

@@ -10,7 +10,8 @@ CREATE TABLE products (
     title            TEXT         NOT NULL,
     image_url        TEXT,
     variant          VARCHAR(160),                   -- chosen size/option, e.g. '30 ML Spray'
-    delivery         NUMERIC(10,2),                  -- standard delivery fee on its page (0 = free) 
+    delivery         NUMERIC(10,2),                  -- standard delivery fee on its page (0 = free)
+    category         VARCHAR(32),                    -- the store's category id, e.g. '9543' (phone cases)
     currency         VARCHAR(8)   NOT NULL DEFAULT 'BDT',
     is_demo          BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
