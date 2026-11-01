@@ -164,7 +164,7 @@ h1 { font-weight: 700; font-size: 40px; line-height: 1.02; letter-spacing: -0.03
 
 /* ---------- Center: the receipt ---------- */
 
-.slip-wrap { padding: 36px 40px 56px; display: flex; justify-content: center; filter: drop-shadow(0 16px 22px rgba(34, 32, 28, 0.13)); }
+.slip-wrap { padding: 36px 40px 56px; display: flex; justify-content: center; filter: drop-shadow(0 16px 22px rgba(34, 32, 28, 0.13)); position: relative; }
 .slip {
   --tone: var(--none);
   width: min(640px, 100%); background: var(--slip); padding: 40px 48px 44px; position: relative;
@@ -174,10 +174,33 @@ h1 { font-weight: 700; font-size: 40px; line-height: 1.02; letter-spacing: -0.03
 .slip[data-verdict="fake_discount"] { --tone: var(--fake); }
 .slip[data-verdict="real_deal"] { --tone: var(--real); }
 .slip[data-verdict="fair"], .slip[data-verdict="overpriced"] { --tone: var(--fair); }
+/* A new result "prints": the receipt feeds down, the photo drops on, the stamp lands, the lines
+   rise in, and "Where to buy" fills one seller at a time. About 1.5 s; off with reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
-  .slip.is-new { animation: print 520ms cubic-bezier(0.16, 1, 0.3, 1); transform-origin: top center; }
-  @keyframes print { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+  .slip.is-new { animation: feed 760ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  @keyframes feed {
+    from { clip-path: inset(0 0 100% 0); transform: translateY(-10px); }
+    to   { clip-path: inset(0 0 -40px 0); transform: none; }
+  }
+  .slip.is-new .photo { animation: drop 620ms 140ms cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+  @keyframes drop { from { opacity: 0; transform: translateY(-18px) rotate(-9deg); } to { opacity: 1; transform: rotate(-2deg); } }
+  .slip.is-new .stamp { animation: stamp 420ms 560ms cubic-bezier(0.5, 0, 0.75, 0) both; }
+  @keyframes stamp {
+    0%   { opacity: 0; transform: scale(1.9) rotate(-12deg); }
+    70%  { opacity: 1; transform: scale(0.96) rotate(-3deg); }
+    100% { opacity: 1; transform: scale(1) rotate(-3deg); }
+  }
+  .slip.is-new .headline, .slip.is-new .basis { animation: rise 420ms 760ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .slip.is-new .lines .line { animation: rise 420ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .slip.is-new .lines .line:nth-child(1) { animation-delay: 860ms; }
+  .slip.is-new .lines .line:nth-child(2) { animation-delay: 930ms; }
+  .slip.is-new .lines .line:nth-child(3) { animation-delay: 1000ms; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .rank li.enter { animation: slide 460ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: calc(300ms + var(--i, 0) * 70ms); }
+  @keyframes slide { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
 }
+/* The stamp stays slightly crooked once it has landed, like a real ink stamp. */
+.slip .stamp { transform: rotate(-3deg); }
 
 .slip-head { text-align: center; padding-bottom: 22px; border-bottom: 1px dashed var(--rule); }
 .photo {
@@ -374,3 +397,52 @@ h1 { font-weight: 700; font-size: 40px; line-height: 1.02; letter-spacing: -0.03
 .buy-loading::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; background: var(--fair); vertical-align: middle; animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .buy-loading::before { animation: none; } }
+
+/* ---- red pen: a fake discount gets corrected ---- */
+.struck { position: relative; display: inline-block; }
+.pen-line { position: absolute; left: -6%; top: 18%; width: 112%; height: 70%; overflow: visible; pointer-events: none; }
+.pen-line path { fill: none; stroke: var(--fake); stroke-width: 3; stroke-linecap: round; }
+.pen-note { display: block; margin-top: 2px; font-family: "Caveat", "Segoe Print", cursive; font-size: 19px; letter-spacing: 0;
+            text-transform: none; color: var(--fake); transform: rotate(-2deg); transform-origin: right; }
+
+/* ---- lie-detector price history ---- */
+.chart .rise { fill: var(--fake); stroke: var(--slip); stroke-width: 2; }
+.chart .needle { stroke: var(--fake); stroke-width: 1.5; opacity: 0.7; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* the pen strikes after the prices have counted up, then the note is "written" */
+  .slip.is-new .pen-line path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pen 340ms 1500ms cubic-bezier(0.6, 0, 0.4, 1) forwards; }
+  @keyframes pen { to { stroke-dashoffset: 0; } }
+  .slip.is-new .pen-note { animation: write 520ms 1820ms steps(14, end) both; }
+  @keyframes write { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+  /* the chart line scratches in like a polygraph; rises flash red as the needle passes */
+  .chart .polygraph .line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pen 1600ms linear forwards; }
+  .chart .polygraph .area, .chart .polygraph .old, .chart .polygraph .dot { animation: fadein 400ms 1500ms both; }
+  .chart .polygraph .rise { animation: spike 600ms var(--at, 0ms) cubic-bezier(0.34, 1.6, 0.64, 1) both; transform-box: fill-box; transform-origin: center; }
+  @keyframes spike { 0% { opacity: 0; transform: scale(0); } 40% { opacity: 1; transform: scale(2.2); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes fadein { from { opacity: 0; } }
+
+  /* switching products: the old receipt tears off and falls away */
+  .slip.torn { position: absolute; z-index: 2; margin: 0; pointer-events: none;
+               animation: tear 760ms cubic-bezier(0.55, 0, 0.85, 0.35) forwards; transform-origin: 20% 0; }
+  @keyframes tear {
+    0%   { transform: none; }
+    18%  { transform: translateY(6px) rotate(0.8deg); }
+    100% { transform: translate(40px, 120vh) rotate(9deg); opacity: 0.9; }
+  }
+}
+
+/* ---- picking a seller in "Where to buy" ---- */
+.rank li.pickable { cursor: pointer; }
+.rank li.pickable:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+  .rank li.pickable { transition: background-color 150ms ease; }
+  .rank li.pickable:hover { background: var(--hover); }
+  .rank li.pickable:hover .seller-name { text-decoration: underline; text-underline-offset: 3px; }
+}
+.rank li.is-picked { background: var(--hover); }
+.picking { display: block; margin-top: 6px; font-size: 10.5px; letter-spacing: .04em; color: var(--muted); }
+.slip.is-switching { opacity: 0.55; transition: opacity 200ms ease-out; }
+.tile.flying { position: fixed; z-index: 60; margin: 0; pointer-events: none; transform-origin: 0 0;
+               box-shadow: 0 18px 30px rgba(34, 32, 28, 0.18); background: var(--tile, #fff); }

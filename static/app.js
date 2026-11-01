@@ -221,15 +221,58 @@ async function loadDetails(r) {
   }
 }
 
+// ---------- motion ----------
+// True while rendering a brand-new result, so only new results animate (not refreshes).
+let animateNext = false;
+let countRun = 0;  // bumps on every render, so an old count-up never writes over a newer result
+
+// Switching products: the receipt on screen tears off and falls away while the new one prints.
+function tearOff(slip) {
+  const copy = slip.cloneNode(true);
+  copy.removeAttribute("id");
+  copy.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
+  copy.classList.remove("is-new");
+  copy.classList.add("torn");
+  copy.setAttribute("aria-hidden", "true");
+  copy.style.left = `${slip.offsetLeft}px`;
+  copy.style.top = `${slip.offsetTop}px`;
+  copy.style.width = `${slip.offsetWidth}px`;
+  slip.parentNode.appendChild(copy);
+  copy.addEventListener("animationend", () => copy.remove(), { once: true });
+  setTimeout(() => copy.remove(), 1500);  // in case the animation never runs
+}
+
+// The price counts up to its value, easing out, after the receipt has printed.
+function countUp(node, value, currency, delay, duration) {
+  if (value == null) return;
+  const run = countRun;
+  const start = performance.now() + delay;
+  node.textContent = money(0, currency);
+  const step = (now) => {
+    const k = Math.min(1, Math.max(0, (now - start) / duration));
+    node.textContent = money(Math.round(value * (1 - Math.pow(1 - k, 3))), currency);
+    if (run !== countRun) return;  // a newer result is on screen
+    if (k < 1) requestAnimationFrame(step);
+    else node.textContent = money(value, currency);
+  };
+  requestAnimationFrame(step);
+}
+
 function renderResult(r, { fresh = true } = {}) {
+  const previous = current;
   current = r;
+  $("result").classList.remove("is-switching");
   showAllSellers = false;
   const v = r.verdict;
   const box = $("result");
+  countRun += 1;
+  animateNext = fresh && !reduceMotion();
+  // Switching to another product: the receipt on screen (still showing the old one) tears off.
+  if (animateNext && previous && previous.id !== r.id && !box.hidden) tearOff(box);
   box.hidden = false;
   $("emptySlip").hidden = true;
   box.dataset.verdict = v.verdict;
-  if (fresh && !reduceMotion()) {
+  if (animateNext) {
     box.classList.remove("is-new");
     void box.offsetWidth;
     box.classList.add("is-new");
@@ -260,6 +303,7 @@ function renderResult(r, { fresh = true } = {}) {
   }[v.basis] ?? "";
 
   renderNumbers(r);
+  if (animateNext) countUp($("nNow"), v.price, r.currency, 860, 640);
 
   const reasons = $("rReasons");
   reasons.textContent = "";
@@ -274,6 +318,24 @@ function renderResult(r, { fresh = true } = {}) {
   renderHistory(r);
   renderAlert(r);
   renderList();
+  animateNext = false;
+}
+
+// A fake discount gets corrected like a test paper: a red pen strikes "17% off", and the usual
+// price is written next to the old price in handwriting.
+function redPen(v, c) {
+  const claim = $("nClaim");
+  const label = claim.textContent;
+  claim.textContent = "";
+  const struck = el("span", { class: "struck" }, label);
+  const line = svg("svg", { class: "pen-line", viewBox: "0 0 100 20", preserveAspectRatio: "none", "aria-hidden": "true" });
+  line.appendChild(svg("path", { d: "M2,13 C28,10 58,9 98,6", pathLength: "1" }));
+  struck.appendChild(line);
+  claim.append(struck);
+  claim.setAttribute("aria-label", `${label}, crossed out: not a real discount`);
+  if (v.usual_price) {
+    $("nClaimSub").append(el("span", { class: "pen-note", text: `usually ~${money(v.usual_price, c)}` }));
+  }
 }
 
 function renderNumbers(r) {
@@ -289,6 +351,7 @@ function renderNumbers(r) {
   $("nClaim").textContent = v.claimed_off_pct ? `${Math.round(v.claimed_off_pct)}% off` : "No discount";
   $("nClaimSub").textContent = v.original_price ? `Old price shown: ${money(v.original_price, c)}`
     : "Daraz isn't showing a discount";
+  if (v.verdict === "fake_discount" && v.claimed_off_pct) redPen(v, c);
 
   const real = v.real_off_pct;
   const ref = money(v.usual_price, c);
@@ -318,9 +381,9 @@ function factClass(text) {
 
 function sellerRow(r, l, { best = false, rank = null } = {}) {
   const name = l.seller || "A seller";
-  const nameNode = l.url && !r.is_demo
-    ? el("a", { href: l.url, target: "_blank", rel: "noopener", title: l.title, text: name })
-    : name;
+  // Clicking a seller opens their listing on the receipt (in the centre); "Open on Daraz" is there.
+  const pickable = Boolean(l.url && !r.is_demo && !l.is_this);
+  const nameNode = el("span", { class: "seller-name", title: l.title || name, text: name });
   const who = el("div", { class: "who" },
     el("div", { class: "s" }, nameNode,
       best ? el("span", { class: "chip best", text: "Best pick" }) : null,
@@ -335,13 +398,83 @@ function sellerRow(r, l, { best = false, rank = null } = {}) {
   if (l.price_unconfirmed && l.url && !r.is_demo) {
     // We only know this size's regular price. One click checks it (you confirm or type the sale price).
     const button = el("button", { type: "button", class: "check-it mono", text: "Check its price" });
-    button.addEventListener("click", () => checkOther(l.url));
+    button.addEventListener("click", (event) => { event.stopPropagation(); pickSeller(l, row); });
     who.appendChild(button);
   }
-  return el("li", best ? { class: "is-best" } : {},
+  const row = el("li", { class: [best ? "is-best" : "", pickable ? "pickable" : ""].join(" ").trim() },
     el("span", { class: "n", text: rank ? String(rank) : "–" }),
     tile(l.image || (l.is_this ? r.image_url : null), l.title || name),
     who, price);
+  if (pickable) {
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-label", `Check ${name}'s listing, ${money(l.price, r.currency)}`);
+    row.addEventListener("click", () => pickSeller(l, row));
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); pickSeller(l, row); }
+    });
+  }
+  return row;
+}
+
+// ---------- picking a seller: their photo flies onto the receipt, then the receipt prints ----------
+// Spatial consistency: the new receipt visibly comes from the seller you clicked.
+const EASE_IN_OUT = "cubic-bezier(0.77, 0, 0.175, 1)";  // strong ease-in-out for on-screen movement
+let picking = false;
+
+async function pickSeller(l, row) {
+  if (picking || !l.url) return;
+  picking = true;
+  row.classList.add("is-picked");
+  row.querySelector(".who").appendChild(el("span", { class: "picking mono", text: "Opening on the receipt…" }));
+  $("result").classList.add("is-switching");
+
+  const flight = flyToReceipt(row.querySelector(".tile"));
+  let failed = null;
+  try {
+    await checkLink(l.url);  // quick check; renders the receipt (old one tears off, new one prints)
+  } catch (err) {
+    failed = err;
+  }
+  await flight.landed;
+  flight.done();
+  $("result").classList.remove("is-switching");
+  picking = false;
+  if (failed) {
+    row.classList.remove("is-picked");
+    row.querySelector(".picking")?.remove();
+    if (failed.body?.need_price) askForPrice(l.url, failed.body);
+    else showMessage(failed.message, true);
+  }
+}
+
+function flyToReceipt(tileNode) {
+  const target = $("rPhoto");
+  const from = tileNode?.getBoundingClientRect();
+  const to = target && !$("result").hidden ? target.getBoundingClientRect() : null;
+  const onScreen = to && to.bottom > 0 && to.top < innerHeight && from;
+  if (!onScreen) return { landed: Promise.resolve(), done() {} };
+
+  const ghost = tileNode.cloneNode(true);
+  ghost.classList.add("flying");
+  Object.assign(ghost.style, { left: `${from.left}px`, top: `${from.top}px`, width: `${from.width}px`, height: `${from.height}px` });
+  document.body.appendChild(ghost);
+
+  const dx = to.left - from.left, dy = to.top - from.top, scale = to.width / from.width;
+  const motion = reduceMotion()
+    ? ghost.animate([{ opacity: 1 }, { opacity: 0.6 }], { duration: 200, easing: "ease", fill: "forwards" })
+    : ghost.animate([
+        { transform: "translate(0, 0) scale(1) rotate(0deg)" },
+        { transform: `translate(${dx}px, ${dy}px) scale(${scale}) rotate(-2deg)` },
+      ], { duration: 460, easing: EASE_IN_OUT, fill: "forwards" });
+  return {
+    landed: motion.finished.catch(() => {}),
+    // Once the new receipt is on screen, the flying photo hands over to the real one.
+    done() {
+      ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: "ease-out", fill: "forwards" })
+        .finished.catch(() => {}).then(() => ghost.remove());
+    },
+  };
 }
 
 function renderWhereToBuy(r) {
@@ -355,7 +488,11 @@ function renderWhereToBuy(r) {
   const list = $("rBuyList");
   list.textContent = "";
   ranked.forEach((l, i) => {
-    if (showAllSellers || i < BUY_SHOWN || l.is_this) list.appendChild(sellerRow(r, l, { best: i === 0, rank: i + 1 }));
+    if (showAllSellers || i < BUY_SHOWN || l.is_this) {
+      const row = sellerRow(r, l, { best: i === 0, rank: i + 1 });
+      if (animateNext) { row.classList.add("enter"); row.style.setProperty("--i", list.children.length); }
+      list.appendChild(row);
+    }
   });
   list.hidden = !ranked.length;
 
@@ -395,7 +532,7 @@ function niceStep(raw) {
   return (unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 2.5 ? 2.5 : unit <= 5 ? 5 : 10) * power;
 }
 
-function drawChart(r) {
+function drawChart(r, { animate = false } = {}) {
   const box = $("rChart");
   box.textContent = "";
   const data = r.history.map((h) => ({ t: new Date(h.at).getTime(), price: h.price, original: h.original }));
@@ -443,8 +580,35 @@ function drawChart(r) {
     if (p.original) { old += on ? `H${x(p.t)}V${y(p.original)}` : `M${x(p.t)},${y(p.original)}`; on = true; } else on = false;
   });
   if (old) root.appendChild(svg("path", { class: "old", d: old }));
-  root.appendChild(svg("path", { class: "line", d }));
+  const line = svg("path", { class: "line", d, pathLength: "1" });
+  root.appendChild(line);
   root.appendChild(svg("circle", { class: "dot", cx: x(t1), cy: y(data.at(-1).price), r: 5 }));
+
+  // Price rises (5%+ above the lowest price in the 30 days before): sellers often do this before
+  // a sale. Marked in red; when the chart draws, they flash as the needle reaches them.
+  const DRAW_MS = 1600;
+  data.forEach((p, i) => {
+    const before = data.slice(0, i).filter((q) => q.t >= p.t - 30 * 86400000);
+    if (!before.length || p.price <= data[i - 1].price) return;
+    const low = Math.min(...before.map((q) => q.price));
+    if (p.price < low * 1.05) return;
+    const spike = svg("circle", { class: "rise", cx: x(p.t), cy: y(p.price), r: 5 });
+    spike.style.setProperty("--at", `${Math.round(((x(p.t) - m.left) / iw) * DRAW_MS)}ms`);
+    const title = svg("title");
+    title.textContent = `Raised from ${money(low, r.currency)} to ${money(p.price, r.currency)}`;
+    spike.appendChild(title);
+    root.appendChild(spike);
+  });
+
+  // Lie-detector style: the line scratches in from left to right behind a needle.
+  if (animate && !reduceMotion()) {
+    root.classList.add("polygraph");
+    const needle = svg("line", { class: "needle", x1: m.left, x2: m.left, y1: m.top, y2: m.top + ih });
+    root.appendChild(needle);
+    needle.animate([{ transform: "translateX(0)" }, { transform: `translateX(${iw}px)` }],
+                   { duration: DRAW_MS, easing: "linear", fill: "forwards" })
+      .finished.then(() => needle.remove()).catch(() => {});
+  }
 
   const hover = svg("line", { class: "hover-line", y1: m.top, y2: m.top + ih, visibility: "hidden" });
   root.appendChild(hover);
@@ -586,12 +750,6 @@ async function submitPrice(price, button) {
   }
 }
 
-async function checkOther(url) {
-  $("url").value = url;
-  $("checkForm").scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "center" });
-  $("checkForm").requestSubmit();
-}
-
 async function checkLink(url, price = null) {
   const r = await api("/api/track", { method: "POST", body: JSON.stringify(price ? { url, price } : { url }) });
   $("priceAsk").hidden = true;
@@ -678,7 +836,7 @@ function setupForm() {
   });
 
   $("rBuyMore").addEventListener("click", () => { showAllSellers = true; renderWhereToBuy(current); });
-  $("rHistory").addEventListener("toggle", () => { if ($("rHistory").open && current) drawChart(current); });
+  $("rHistory").addEventListener("toggle", () => { if ($("rHistory").open && current) drawChart(current, { animate: true }); });
 }
 
 async function start() {
