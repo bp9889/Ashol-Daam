@@ -76,8 +76,21 @@ def status() -> dict:
         why = f"couldn't start: {state.broken}"
     else:
         why = None
-    return {"working": why is None, "uses": "browser service" if config.BROWSER_WS_URL else "this computer's browser",
-            "problem": why, "last_error": state.last_error}
+    return {"working": why is None and not state.last_error,
+            "uses": "browser service" if config.BROWSER_WS_URL else "this computer's browser",
+            "problem": why, "last_error": state.last_error, "service": _describe(config.BROWSER_WS_URL)}
+
+
+def _describe(address: str) -> dict | None:
+    """What the service address looks like, without revealing the token."""
+    if not address:
+        return None
+    from urllib.parse import parse_qs, urlparse
+
+    parsed = urlparse(address)
+    token = (parse_qs(parsed.query).get("token") or [""])[0]
+    return {"address": f"{parsed.scheme}://{parsed.hostname}", "has_token": bool(token),
+            "token_length": len(token), "token_ends_with": token[-3:] if len(token) > 12 else None}
 
 
 def _number(text: str | None) -> float | None:

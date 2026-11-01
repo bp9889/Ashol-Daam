@@ -35,7 +35,15 @@ SEED_DEMO_DATA = _env("SEED_DEMO_DATA", "1") == "1"
 # Read sale prices of sizes/options by opening the page in a hidden browser (Edge/Chrome).
 # Daraz adds those prices with scripts, so plain downloads only see the regular price.
 # On Vercel: a browser service's address (Browserless: wss://production-sfo.browserless.io?token=...)
-BROWSER_WS_URL = _env("BROWSER_WS_URL")
+def _browser_address(value: str) -> str:
+    """Accept the full address, or just the Browserless token; drop quotes/spaces pasted with it."""
+    value = value.strip().strip("'\"").strip().replace(" ", "")
+    if value and "://" not in value:  # only the token was pasted
+        value = f"wss://production-sfo.browserless.io?token={value}"
+    return value
+
+
+BROWSER_WS_URL = _browser_address(_env("BROWSER_WS_URL"))
 BROWSER_PRICES = _env("BROWSER_PRICES", "0" if ON_VERCEL and not BROWSER_WS_URL else "1") == "1"
 BROWSER_CHANNEL = _env("BROWSER_CHANNEL")  # "msedge", "chrome", or empty = try Edge, Chrome, then Chromium
 

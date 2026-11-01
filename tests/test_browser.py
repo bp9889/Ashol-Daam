@@ -100,3 +100,15 @@ def test_status_never_shows_the_token():
     from app.browser import _hide_secrets
     msg = "BrowserType.connect_over_cdp: WebSocket error: wss://production-sfo.browserless.io?token=abc123&x=1 403"
     assert "abc123" not in _hide_secrets(msg) and "token=***" in _hide_secrets(msg)
+
+
+def test_service_address_is_forgiving():
+    from app.config import _browser_address
+    full = "wss://production-sfo.browserless.io?token=abcdef123456789"
+    assert _browser_address(full) == full
+    assert _browser_address(' "' + full + '" ') == full
+    assert _browser_address("abcdef123456789") == full  # only the token pasted
+    assert _browser_address("") == ""
+    from app.browser import _describe
+    d = _describe(full)
+    assert d == {"address": "wss://production-sfo.browserless.io", "has_token": True, "token_length": 15, "token_ends_with": "789"}
