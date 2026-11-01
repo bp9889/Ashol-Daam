@@ -30,7 +30,8 @@ def _seller(seller, title, price, original=None, rating=None, reviews=0, sold=0,
             overseas=False, free_shipping=False, is_this=False):
     return {"seller": seller, "title": title, "price": price, "original_price": original, "url": None,
             "rating": rating, "reviews": reviews, "sold": sold, "mall": mall, "overseas": overseas,
-            "free_shipping": free_shipping, "is_this": is_this, "match_version": MATCH_VERSION}
+            "free_shipping": free_shipping, "delivery": 0.0 if free_shipping else 70.0,
+            "is_this": is_this, "match_version": MATCH_VERSION}
 
 
 # Made-up sellers for the sample steam iron, covering every case in the "where to buy" ranking.

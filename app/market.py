@@ -237,7 +237,7 @@ def compare(title: str, price: float, own_id: str, results: list[Listing],
 
 MAX_LISTINGS = 15
 # Bump when matching changes, so saved seller lists made with older rules get rebuilt.
-MATCH_VERSION = 8
+MATCH_VERSION = 9
 
 
 def _listing_dict(r: Listing, is_this: bool = False) -> dict:
@@ -246,7 +246,9 @@ def _listing_dict(r: Listing, is_this: bool = False) -> dict:
         "title": r.title, "price": r.price, "original_price": r.original_price, "seller": r.seller, "url": r.url,
         "rating": r.rating, "reviews": r.reviews, "sold": r.sold, "mall": r.mall,
         "overseas": r.overseas, "free_shipping": r.free_shipping, "is_this": is_this, "image": r.image,
-        "delivery": r.delivery if r.delivery is not None else (0.0 if r.free_shipping else None),
+        # Only the fee shown on the product page counts. Search's "free shipping" badge often means
+        # free only with a voucher or a minimum spend (e.g. Daraz shows ৳90 on the page).
+        "delivery": r.delivery,
         "match_version": MATCH_VERSION,
     }
 

@@ -205,7 +205,8 @@ async def _read_page(page, url: str) -> SeenPrice | None:
     delivery = None
     fee = page.locator(DELIVERY_FEE).first
     try:
-        await fee.wait_for(timeout=4000)  # the delivery box loads a moment after the price
+        await page.evaluate("window.scrollBy(0, 400)")  # in case the delivery box loads when seen
+        await fee.wait_for(timeout=8000)  # the delivery box loads a moment after the price
         text = (await fee.inner_text()).strip()
         delivery = 0.0 if "free" in text.lower() else _number(text)
     except Exception:
