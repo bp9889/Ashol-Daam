@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-local.txtt
       - name: Check prices
         run: python -m app.collector
         env:
@@ -32,3 +32,5 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_MODE: webhook     # the hosted site receives Telegram messages
           SEED_DEMO_DATA: "0"
+          BROWSER_PRICES: "1"
+          BROWSER_CHANNEL: chrome
