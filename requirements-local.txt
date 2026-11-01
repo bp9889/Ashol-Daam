@@ -1,0 +1,5 @@
+# Everything the website needs, plus what your computer and the daily checks use.
+-r requirements.txt
+# Reads sale prices of sizes by opening Daraz pages in a hidden Edge/Chrome
+playwright>=1.45
+pytest>=8.0

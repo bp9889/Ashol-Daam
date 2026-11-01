@@ -1,0 +1,28 @@
+# Render "Blueprint": New + > Blueprint > pick this repo. See DEPLOY.md.
+services:
+  - type: web
+    name: asol-dam
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: DATABASE_URL
+        sync: false          # paste your Neon connection string when Render asks
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: TELEGRAM_MODE
+        value: webhook
+      - key: TELEGRAM_WEBHOOK_SECRET
+        generateValue: true  # Render makes a random secret; copy it for the set-webhook step
+      # The free plan sleeps after 15 minutes without visitors, so the in-app scheduler
+      # can't be trusted there. GitHub Actions runs the checks instead.
+      - key: SCHEDULER_ENABLED
+        value: "0"
+      - key: SEED_DEMO_DATA
+        value: "0"

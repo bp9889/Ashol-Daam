@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Asol Dam · Is that Daraz discount real?</title>
+  <meta name="description" content="Paste a Daraz product link to see if the discount is real and which trusted seller sells it for less.">
+  <meta name="theme-color" content="#ECE8DF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='M12 4h40v52l-5-4-5 4-5-4-5 4-5-4-5 4-5-4-5 4z' fill='%23FBFAF6' stroke='%2322201C' stroke-width='3'/><path d='M20 18h24M20 28h24M20 38h14' stroke='%23B0392E' stroke-width='4'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Hind+Siliguri:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    try { const t = localStorage.getItem("asol-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+</head>
+<body>
+  <a class="skip" href="#url">Skip to the link box</a>
+
+  <header class="top">
+    <div class="top-cell">
+      <a class="logo" href="/" aria-label="Asol Dam, home">
+        <span class="bn" lang="bn" translate="no">আসল দাম</span><span class="sep" aria-hidden="true">/</span><span translate="no">Asol Dam</span>
+      </a>
+    </div>
+    <div class="top-cell mono wide-only">
+      <span>Daraz price check</span>
+      <span class="push" id="today"></span>
+    </div>
+    <div class="top-cell mono">
+      <span class="sale" id="countdown" hidden></span>
+      <span class="push wide-only" id="scheduleShort"></span>
+      <button class="icon-button" id="themeToggle" type="button" aria-label="Switch between light and dark">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: check a price, how it works, recently checked -->
+    <aside class="col col-left">
+      <section class="block" aria-labelledby="heroTitle">
+        <p class="mono">Check a price</p>
+        <h1 id="heroTitle">Is that discount real?</h1>
+        <p class="lede">Paste a Daraz product link. You'll see if the discount is real, and which trusted seller has it for less.</p>
+        <form class="check" id="checkForm" novalidate>
+          <label for="url" class="visually-hidden">Daraz product link</label>
+          <input id="url" name="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"
+                 placeholder="Paste a Daraz link here…">
+          <button type="submit" id="checkBtn">Check</button>
+        </form>
+        <p class="form-message" id="formMessage" role="status" aria-live="polite"></p>
+        <form class="price-ask" id="priceAsk" hidden novalidate>
+          <p id="priceAskText"></p>
+          <button type="button" class="yes-price" id="askYes"></button>
+          <label for="askPrice" class="ask-or">No, Daraz shows a lower sale price:</label>
+          <div class="check">
+            <span class="taka" aria-hidden="true">৳</span>
+            <input id="askPrice" name="price" type="number" inputmode="numeric" min="1" step="1" autocomplete="off" placeholder="e.g. 699">
+            <button type="submit" id="askBtn">Use this price</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="block" aria-labelledby="howTitle">
+        <h2 class="mono label" id="howTitle">How it works</h2>
+        <ol class="steps">
+          <li><span class="n" aria-hidden="true">01</span><div><b>Copy the link</b><span>In the Daraz app tap <em>Share</em>, then <em>Copy link</em>. On a computer, copy the address bar.</span></div></li>
+          <li><span class="n" aria-hidden="true">02</span><div><b>Paste it here</b><span>Then press <em>Check</em>. It takes a few seconds.</span></div></li>
+          <li><span class="n" aria-hidden="true">03</span><div><b>Read the receipt</b><span>Real or fake discount, and the best seller to buy from.</span></div></li>
+        </ol>
+      </section>
+
+      <section class="block last" aria-labelledby="recentTitle">
+        <div class="recent-head">
+          <h2 class="mono" id="recentTitle">Recently checked</h2>
+          <div class="filters" role="group" aria-label="Show">
+            <button type="button" data-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-filter="real_deal" aria-pressed="false">Real</button>
+            <button type="button" data-filter="fake_discount" aria-pressed="false">Fake</button>
+          </div>
+        </div>
+        <ul class="recent-list" id="watchList"></ul>
+        <p class="empty" id="watchEmpty" hidden>Nothing checked yet. Paste a Daraz link above to start.</p>
+        <p class="empty" id="filterEmpty" hidden></p>
+      </section>
+    </aside>
+
+    <!-- CENTER: the receipt -->
+    <main class="col col-center" id="main">
+      <div class="slip-wrap">
+        <article class="slip" id="result" hidden aria-live="polite" aria-labelledby="rHeadline">
+          <div class="slip-head">
+            <figure class="photo" id="rPhoto" aria-hidden="true"></figure>
+            <p class="sample-note mono" id="rSample" hidden>Sample product, made-up prices</p>
+            <p class="mono item" id="rTitle"></p>
+            <p class="mono variant" id="rVariant" hidden></p>
+            <p class="links mono">
+              <a id="rLink" href="#" target="_blank" rel="noopener">Open on Daraz</a>
+              <button type="button" id="rRefresh" class="text-button">Check again</button>
+              <button type="button" id="rRemove" class="text-button">Remove</button>
+              <span class="checked" id="rChecked"></span>
+            </p>
+          </div>
+
+          <div class="slip-verdict">
+            <p class="stamp" id="rBadge"></p>
+            <h2 class="headline" id="rHeadline"></h2>
+            <p class="basis" id="rBasis"></p>
+          </div>
+
+          <dl class="lines">
+            <div class="line">
+              <dt class="mono">You pay</dt><dd class="lead" aria-hidden="true"></dd><dd class="val" id="nNow"></dd>
+              <dd class="note" id="nNowSub"></dd>
+            </div>
+            <div class="line">
+              <dt class="mono">Daraz says</dt><dd class="lead" aria-hidden="true"></dd><dd class="val" id="nClaim"></dd>
+              <dd class="note" id="nClaimSub"></dd>
+            </div>
+            <div class="line line-real">
+              <dt class="mono">Real saving</dt><dd class="lead" aria-hidden="true"></dd><dd class="val" id="nReal"></dd>
+              <dd class="note" id="nRealSub"></dd>
+            </div>
+          </dl>
+
+          <div class="slip-section" id="rWhy">
+            <h3 class="mono">Why</h3>
+            <ul class="why" id="rReasons"></ul>
+          </div>
+
+          <details class="fold" id="rHistory">
+            <summary class="mono">Price history</summary>
+            <p class="small" id="rHistoryNote"></p>
+            <div id="rChartWrap">
+              <ul class="legend mono" aria-hidden="true">
+                <li class="key-price">Price</li>
+                <li class="key-old">Old price shown</li>
+                <li class="key-usual" id="keyUsual">Usual price</li>
+              </ul>
+              <div class="chart" id="rChart"></div>
+              <dl class="stats">
+                <div><dt class="mono">Lowest</dt><dd id="sLow"></dd></div>
+                <div><dt class="mono">Usual</dt><dd id="sUsual"></dd></div>
+                <div><dt class="mono">Highest</dt><dd id="sHigh"></dd></div>
+              </dl>
+            </div>
+          </details>
+
+          <details class="fold" id="rAlert" hidden>
+            <summary class="mono">Price-drop alert</summary>
+            <form class="alert-form" id="alertForm" novalidate>
+              <p class="small">We'll message you on Telegram. Leave the price empty to hear about any drop of 5% or more.</p>
+              <div class="alert-row">
+                <label for="alertPrice">Tell me when it's below</label>
+                <span class="money-input"><span aria-hidden="true">৳</span><input id="alertPrice" name="target_price" type="number" inputmode="numeric" min="1" step="1" autocomplete="off"></span>
+                <button type="submit" id="alertBtn">Set alert</button>
+              </div>
+            </form>
+            <div class="alert-done" id="alertDone" hidden>
+              <p>One more step: open Telegram and press <strong>Start</strong>.</p>
+              <a class="button-link" id="alertLink" href="#" target="_blank" rel="noopener">Open Telegram</a>
+            </div>
+            <p class="alert-message" id="alertMessage" role="status" aria-live="polite"></p>
+          </details>
+
+          <div class="slip-foot" aria-hidden="true">
+            <div class="barcode"></div>
+            <p class="mono" id="rFoot"></p>
+          </div>
+        </article>
+
+        <article class="slip slip-empty" id="emptySlip">
+          <p class="stamp neutral">Ready</p>
+          <h2 class="headline">Your price check prints here.</h2>
+          <p class="basis">Paste a Daraz link on the left. We'll compare it with other sellers and its own past prices.</p>
+          <div class="slip-foot" aria-hidden="true"><div class="barcode"></div></div>
+        </article>
+      </div>
+    </main>
+
+    <!-- RIGHT: where to buy -->
+    <aside class="col col-right" aria-labelledby="buyTitle">
+      <div class="block head">
+        <p class="mono">Where to buy</p>
+        <h2 id="buyTitle">Best sellers</h2>
+        <p class="mono soft">Ranked by price with delivery, rating and reviews</p>
+      </div>
+      <ol class="rank" id="rBuyList"></ol>
+      <p class="buy-empty" id="rBuyEmpty"></p>
+      <button type="button" class="more mono" id="rBuyMore" hidden></button>
+      <details class="unproven" id="rUnproven" hidden>
+        <summary class="mono" id="rUnprovenSummary"></summary>
+        <p class="small">Cheaper sometimes, but with few or no reviews, or bad ones. You take more risk buying here.</p>
+        <ol class="rank plain" id="rUnprovenList"></ol>
+      </details>
+    </aside>
+  </div>
+
+  <footer class="foot mono">
+    <span>Asol Dam is an independent student project, not part of Daraz.</span>
+    <span>Prices can be a few hours old. Check on Daraz before you buy.</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

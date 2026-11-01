@@ -1,0 +1,11 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0
+httpx>=0.27
+beautifulsoup4>=4.12
+pydantic>=2.7
+python-dotenv>=1.0
+# Time zones on Windows (Python's zoneinfo needs this there)
+tzdata>=2024.1
+# PostgreSQL driver, used when DATABASE_URL points at Postgres (hosting)
+psycopg[binary]>=3.1
