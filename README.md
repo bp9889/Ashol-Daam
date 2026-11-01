@@ -1,4 +1,4 @@
-# Asol Dam (আসল দাম)
+# Ashol Daam (আসল দাম)
 
 Paste a Daraz product link and find out whether the discount is real.
 Asol Dam records the product's price over time and compares today's "sale" price with what it usually sells for.
