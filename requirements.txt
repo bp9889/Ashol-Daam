@@ -9,3 +9,5 @@ python-dotenv>=1.0
 tzdata>=2024.1
 # PostgreSQL driver, used when DATABASE_URL points at Postgres (hosting)
 psycopg[binary]>=3.1
+# Talks to a browser (Edge/Chrome on your PC, or a browser service on Vercel) to read sale prices
+playwright>=1.45

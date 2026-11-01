@@ -8,6 +8,9 @@ the computer (no extra download), or Playwright's own Chromium if neither is the
 Polite by design: only pages we need, at most 3 at a time, images/fonts not downloaded. If Daraz
 shows a robot check we stop straight away and never try to get past it.
 Turn it off with BROWSER_PRICES=0.
+
+On Vercel (which can't run a browser) set BROWSER_WS_URL to a browser service's address, e.g.
+Browserless: wss://production-sfo.browserless.io?token=YOUR_TOKEN
 """
 
 from __future__ import annotations
@@ -92,6 +95,10 @@ def read_prices(urls: list[str], timeout_s: float = 25) -> dict[str, SeenPrice]:
 
 
 async def _launch(pw):
+    if config.BROWSER_WS_URL:
+        # A browser rented from an online service (e.g. Browserless), for hosts like Vercel that
+        # can't run one themselves. A failure here may be temporary, so we don't give up for good.
+        return await pw.chromium.connect_over_cdp(config.BROWSER_WS_URL, timeout=20_000)
     channels = [config.BROWSER_CHANNEL] if config.BROWSER_CHANNEL else ["msedge", "chrome", None]
     errors = []
     for channel in channels:
@@ -119,7 +126,10 @@ async def _read_all(urls: list[str]) -> dict[str, SeenPrice]:
                 else:
                     await route.continue_()
 
-            await context.route("**/*", skip_heavy)
+            try:
+                await context.route("**/*", skip_heavy)
+            except Exception:  # some remote browsers don't allow this; pages just load a bit slower
+                pass
             gate = asyncio.Semaphore(AT_ONCE)
             seen: dict[str, SeenPrice] = {}
 

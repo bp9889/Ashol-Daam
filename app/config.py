@@ -34,7 +34,9 @@ SEED_DEMO_DATA = _env("SEED_DEMO_DATA", "1") == "1"
 
 # Read sale prices of sizes/options by opening the page in a hidden browser (Edge/Chrome).
 # Daraz adds those prices with scripts, so plain downloads only see the regular price.
-BROWSER_PRICES = _env("BROWSER_PRICES", "0" if ON_VERCEL else "1") == "1"
+# On Vercel: a browser service's address (Browserless: wss://production-sfo.browserless.io?token=...)
+BROWSER_WS_URL = _env("BROWSER_WS_URL")
+BROWSER_PRICES = _env("BROWSER_PRICES", "0" if ON_VERCEL and not BROWSER_WS_URL else "1") == "1"
 BROWSER_CHANNEL = _env("BROWSER_CHANNEL")  # "msedge", "chrome", or empty = try Edge, Chrome, then Chromium
 
 # Polite delay range (seconds) between requests when the collector refreshes many products.

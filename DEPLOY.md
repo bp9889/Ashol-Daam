@@ -10,9 +10,9 @@ This setup keeps everything running 24/7 at no cost:
 | Twice-daily price checks | **GitHub Actions** | Runs `python -m app.collector` at 10 AM and 10 PM Dhaka time, with Chrome, so sizes' sale prices are read too. |
 | Telegram alerts | Your bot | Messages come in through the website (webhook). |
 
-What's different from your laptop: the website on Vercel can't open the hidden browser. When you paste
-a product that comes in sizes, other sellers' sizes may show their **regular** price with a
-**Check its price** button. The twice-daily checks on GitHub do read the real sale prices.
+Vercel can't run a browser itself. Without step 6, pasting a product on the live site shows
+other sellers' sizes at their **regular** price (with a **Check its price** button) and only "free"
+delivery; the twice-daily checks on GitHub fill in the rest within a day. Step 6 makes it instant.
 
 ---
 
@@ -71,6 +71,17 @@ Keep `DATABASE_URL` secret: anyone with it can read and change your database.
 3. Message your bot `/start`. It should reply.
 
 To test alerts on your laptop again: `python -m app.telegram delete-webhook`.
+
+## 6. Instant sale prices and delivery fees on the live site (Browserless)
+
+1. Sign up free at **browserless.io** and copy your **API token** from the dashboard.
+2. In Vercel → **Settings → Environment Variables**, add
+   - Key `BROWSER_WS_URL`
+   - Value `wss://production-sfo.browserless.io?token=YOUR_TOKEN` (your token instead of YOUR_TOKEN)
+3. Redeploy. Checks that open sellers' pages take 10–30 seconds; the page tells visitors to wait.
+
+The free plan has a monthly limit. When it runs out, or if Daraz shows Browserless a robot check,
+the site simply falls back to how it worked before step 6. Keep the token secret.
 
 ---
 

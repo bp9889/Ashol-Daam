@@ -68,3 +68,29 @@ def test_stops_at_a_robot_check(site):
 def test_off_switch(site, monkeypatch):
     monkeypatch.setattr(config, "BROWSER_PRICES", False)
     assert browser.read_prices([f"{site}/p30.html"]) == {}
+
+
+def test_uses_a_remote_browser_when_given_one(site, monkeypatch):
+    """Like Browserless on Vercel: connect to a browser running elsewhere instead of starting one."""
+    import socket
+    import subprocess
+    import time
+
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as pw:
+        exe = pw.chromium.executable_path
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    proc = subprocess.Popen([exe, "--headless=new", f"--remote-debugging-port={port}", "--no-sandbox",
+                             "--user-data-dir=" + str(__import__("tempfile").mkdtemp()), "about:blank"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        time.sleep(1.5)
+        monkeypatch.setattr(config, "BROWSER_WS_URL", f"http://127.0.0.1:{port}")
+        browser._cache.clear()
+        seen = browser.read_prices([f"{site}/p30.html"])
+        assert (seen[f"{site}/p30.html"].price, seen[f"{site}/p30.html"].delivery) == (699, 60)
+    finally:
+        proc.terminate()
