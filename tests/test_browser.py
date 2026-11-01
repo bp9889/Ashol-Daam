@@ -94,3 +94,9 @@ def test_uses_a_remote_browser_when_given_one(site, monkeypatch):
         assert (seen[f"{site}/p30.html"].price, seen[f"{site}/p30.html"].delivery) == (699, 60)
     finally:
         proc.terminate()
+
+
+def test_status_never_shows_the_token():
+    from app.browser import _hide_secrets
+    msg = "BrowserType.connect_over_cdp: WebSocket error: wss://production-sfo.browserless.io?token=abc123&x=1 403"
+    assert "abc123" not in _hide_secrets(msg) and "token=***" in _hide_secrets(msg)

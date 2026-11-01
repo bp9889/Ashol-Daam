@@ -237,7 +237,7 @@ def compare(title: str, price: float, own_id: str, results: list[Listing],
 
 MAX_LISTINGS = 15
 # Bump when matching changes, so saved seller lists made with older rules get rebuilt.
-MATCH_VERSION = 7
+MATCH_VERSION = 8
 
 
 def _listing_dict(r: Listing, is_this: bool = False) -> dict:

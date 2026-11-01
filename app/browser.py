@@ -48,6 +48,7 @@ class SeenPrice:
 class _State:
     blocked = False  # Daraz showed a robot check: no more browser reads until the server restarts
     broken: str | None = None  # couldn't start any browser
+    last_error: str | None = None  # most recent failure, shown on /api/status
 
 
 state = _State()
@@ -56,6 +57,27 @@ state = _State()
 def available() -> bool:
     return (config.BROWSER_PRICES and not state.blocked and not state.broken
             and importlib.util.find_spec("playwright") is not None)
+
+
+def _hide_secrets(text: str) -> str:
+    """Error messages can contain the service address; never show or log its token."""
+    return re.sub(r"(token=)[^&\s\"']+", r"\1***", text)
+
+
+def status() -> dict:
+    """For /api/status: can this server read prices with a browser right now, and if not, why."""
+    if not config.BROWSER_PRICES:
+        why = "off (on Vercel, set BROWSER_WS_URL)" if config.ON_VERCEL else "off (BROWSER_PRICES=0)"
+    elif importlib.util.find_spec("playwright") is None:
+        why = "Playwright isn't installed"
+    elif state.blocked:
+        why = "paused: Daraz showed a robot check"
+    elif state.broken:
+        why = f"couldn't start: {state.broken}"
+    else:
+        why = None
+    return {"working": why is None, "uses": "browser service" if config.BROWSER_WS_URL else "this computer's browser",
+            "problem": why, "last_error": state.last_error}
 
 
 def _number(text: str | None) -> float | None:
@@ -83,7 +105,9 @@ def read_prices(urls: list[str], timeout_s: float = 25) -> dict[str, SeenPrice]:
         try:
             result.update(asyncio.run(asyncio.wait_for(_read_all(urls), timeout_s + 15)))
         except Exception as exc:  # the browser is a bonus: never break a price check because of it
-            log.warning("Browser price check failed: %s", exc)
+            first_line = str(exc).splitlines()[0] if str(exc) else ""
+            state.last_error = _hide_secrets(f"{type(exc).__name__}: {first_line}")[:300]
+            log.warning("Browser price check failed: %s", state.last_error)
 
     # Run in a fresh thread so it never clashes with an event loop already running here.
     worker = threading.Thread(target=run, daemon=True)
@@ -145,7 +169,7 @@ async def _read_all(urls: list[str]) -> dict[str, SeenPrice]:
                         if found:
                             seen[url] = found
                     except Exception as exc:
-                        log.info("Couldn't read the price on %s: %s", url, str(exc).splitlines()[0])
+                        log.info("Couldn't read the price on %s: %s", url, _hide_secrets(str(exc).splitlines()[0]))
                     finally:
                         await page.close()
 

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import alerts, config, scheduler, services, telegram
+from . import alerts, browser, config, scheduler, services, telegram
 from .adapters import AdapterError, BlockedError, PriceNeeded, UnsupportedUrlError, get_adapter
 from .db import SessionLocal, get_session, init_db
 from .models import Product
@@ -114,6 +114,7 @@ def status():
         "check_times": config.CHECK_TIMES,
         "timezone": config.TIMEZONE,
         "scheduler": scheduler.state,
+        "browser": browser.status(),
     }
 
 
