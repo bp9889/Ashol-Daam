@@ -85,10 +85,13 @@ function tile(imageUrl, title) {
 
 async function api(path, options = {}) {
   const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options });
+  // Served from the app's saved copies because there's no connection (see sw.js).
+  if (response.headers.get("X-Asol-Saved")) dispatchEvent(new CustomEvent("asol:saved"));
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(typeof body.detail === "string" ? body.detail : "Something went wrong. Try again.");
     error.body = body;
+    error.status = response.status;
     throw error;
   }
   return body;
@@ -1005,13 +1008,20 @@ async function loadStatus() {
 // ---------- opening, checking ----------
 
 async function openProduct(id, scroll = false) {
+  let r;
   try {
-    renderResult(await api(`/api/products/${id}`));
-    history.replaceState(null, "", `#p=${id}`);
-    if (scroll) $("result").scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth" });
+    r = await api(`/api/products/${id}`);
   } catch (err) {
-    showMessage(err.message, true);
+    // No connection and no saved copy yet: show what the list already knows (price and verdict),
+    // without the sellers, until the connection is back.
+    const known = products.find((p) => p.id === id);
+    if (!known || !(err instanceof TypeError || !navigator.onLine || err.status >= 500)) { showMessage(err.message, true); return; }
+    r = { ...known, history: [], market: null, offline: true };
+    dispatchEvent(new CustomEvent("asol:saved"));
   }
+  renderResult(r);
+  history.replaceState(null, "", `#p=${id}`);
+  if (scroll) $("result").scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth" });
 }
 
 function showMessage(text, isError = false) {

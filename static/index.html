@@ -8,11 +8,17 @@
   <meta name="theme-color" content="#ECE8DF" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='M12 4h40v52l-5-4-5 4-5-4-5 4-5-4-5 4-5-4-5 4z' fill='%23FBFAF6' stroke='%2322201C' stroke-width='3'/><path d='M20 18h24M20 28h24M20 38h14' stroke='%23B0392E' stroke-width='4'/></svg>">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Asol Dam">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Hind+Siliguri:wght@500;700&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=7">
-  <link rel="stylesheet" href="motion.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="motion.css?v=8">
   <script>
     try { const t = localStorage.getItem("asol-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
     // The intro logo waits for its arrival animation (shown plainly if motion is off or GSAP can't load).
@@ -21,7 +27,7 @@
       setTimeout(() => { if (!window.gsap) document.documentElement.classList.remove("intro-wait"); }, 2500);
     }
   </script>
-  <link rel="stylesheet" href="intro.css?v=7">
+  <link rel="stylesheet" href="intro.css?v=8">
 </head>
 <body>
   <a class="skip" href="#url">Skip to the link box</a>
@@ -29,6 +35,7 @@
   <!-- Intro: the logo, then scroll down to the checker. The logo glides into the header as you scroll. -->
   <section class="intro" id="intro" aria-label="Ashol Dam">
     <div class="intro-guides" aria-hidden="true"><i></i><i></i><i></i></div>
+    <button class="install-app intro-install" type="button" data-install hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path class="dl-arrow" d="M12 4v10M7.5 9.5 12 14l4.5-4.5"/><path d="M5 16v3h14v-3"/></svg><span>Install app</span></button>
     <button class="icon-button intro-theme" type="button" data-theme-toggle aria-label="Switch between light and dark">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
     </button>
@@ -78,6 +85,7 @@
     <div class="top-cell mono">
       <span class="sale" id="countdown" hidden></span>
       <span class="push wide-only" id="scheduleShort"></span>
+      <button class="install-app" type="button" data-install hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path class="dl-arrow" d="M12 4v10M7.5 9.5 12 14l4.5-4.5"/><path d="M5 16v3h14v-3"/></svg><span>Install app</span></button>
       <button class="icon-button" id="themeToggle" type="button" aria-label="Switch between light and dark">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
       </button>
@@ -302,15 +310,28 @@
     </div>
   </div>
 
+  <!-- iPhone/iPad: how to install (Safari has no install button of its own). -->
+  <div class="install-help" id="installHelp" role="dialog" aria-label="Install Asol Dam" hidden>
+    <p class="ih-head">Install Asol Dam</p>
+    <ol>
+      <li>Tap <b>Share</b> <span class="ih-icon" aria-hidden="true">⎋</span> at the bottom of Safari</li>
+      <li>Choose <b>Add to Home Screen</b></li>
+      <li>Tap <b>Add</b>. Done!</li>
+    </ol>
+    <button type="button" class="text-button mono" data-close-help>Got it</button>
+  </div>
+  <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
+
   <footer class="foot mono">
     <span>Asol Dam is an independent student project, not part of Daraz.</span>
     <span>Prices can be a few hours old. Check on Daraz before you buy.</span>
   </footer>
 
-  <script src="app.js?v=7"></script>
-  <script src="motion.js?v=7"></script>
+  <script src="app.js?v=8"></script>
+  <script src="motion.js?v=8"></script>
+  <script src="pwa.js?v=8"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
-  <script src="intro.js?v=7" defer></script>
+  <script src="intro.js?v=8" defer></script>
 </body>
 </html>

@@ -24,6 +24,7 @@ Live site: **https://ashol-daam.vercel.app**
 | **Price history** | Every product is re-checked at **10 AM and 10 PM** (Dhaka time), and a chart shows how the price moved. |
 | **Private history** | "Recently checked" shows only what *you* checked in your browser. |
 | **Telegram alerts** (optional) | Get a message when a price drops. |
+| **Install as an app** | "Install app" puts Asol Dam on your phone or PC. On Android, share a product from the Daraz app straight to Asol Dam. Products you've checked still open offline. |
 
 ## How a check works
 

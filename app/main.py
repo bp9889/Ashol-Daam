@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import mimetypes
 import logging
 import re
 import secrets
@@ -40,6 +41,9 @@ async def lifespan(_: FastAPI):
     scheduler.stop()
     telegram.stop_polling()
 
+
+# The app manifest's type, so browsers recognise the site as an installable app.
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 app = FastAPI(title="Asol Dam", version="0.2.0", lifespan=lifespan)
 
@@ -113,9 +117,10 @@ def _get(session: Session, product_id: int) -> Product:
 
 
 @app.get("/api/products/{product_id}")
-def get_product(product_id: int, session: Session = Depends(get_session)):
+def get_product(product_id: int, refresh: bool = True, session: Session = Depends(get_session)):
+    """refresh=false: just what's saved (the app uses it to keep offline copies, without searching Daraz)."""
     product = _get(session, product_id)
-    if not product.is_demo and services.market_outdated(product):
+    if refresh and not product.is_demo and services.market_outdated(product):
         # Seller list saved with older rules (e.g. before photos): rebuild it now. One search request.
         services.update_market(session, product, get_adapter(product.url), detailed=False)
     return services.report(product)
