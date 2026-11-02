@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Hind+Siliguri:wght@500;700&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=8">
-  <link rel="stylesheet" href="motion.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=9">
+  <link rel="stylesheet" href="motion.css?v=9">
   <script>
     try { const t = localStorage.getItem("asol-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
     // The intro logo waits for its arrival animation (shown plainly if motion is off or GSAP can't load).
@@ -27,7 +27,7 @@
       setTimeout(() => { if (!window.gsap) document.documentElement.classList.remove("intro-wait"); }, 2500);
     }
   </script>
-  <link rel="stylesheet" href="intro.css?v=8">
+  <link rel="stylesheet" href="intro.css?v=9">
 </head>
 <body>
   <a class="skip" href="#url">Skip to the link box</a>
@@ -320,6 +320,13 @@
     </ol>
     <button type="button" class="text-button mono" data-close-help>Got it</button>
   </div>
+  <!-- Phones: "Get the app" bar at the bottom. -->
+  <div class="app-banner" id="appBanner" role="region" aria-label="Get the Asol Dam app" hidden>
+    <img src="/icons/icon-192.png" alt="" width="44" height="44">
+    <p><b>Asol Dam app</b><span>Check Daraz prices in one tap</span></p>
+    <button class="install-app" type="button" data-install hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path class="dl-arrow" d="M12 4v10M7.5 9.5 12 14l4.5-4.5"/><path d="M5 16v3h14v-3"/></svg><span>Install</span></button>
+    <button class="banner-close" id="appBannerClose" type="button" aria-label="Hide">×</button>
+  </div>
   <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
 
   <footer class="foot mono">
@@ -327,11 +334,11 @@
     <span>Prices can be a few hours old. Check on Daraz before you buy.</span>
   </footer>
 
-  <script src="app.js?v=8"></script>
-  <script src="motion.js?v=8"></script>
-  <script src="pwa.js?v=8"></script>
+  <script src="app.js?v=9"></script>
+  <script src="motion.js?v=9"></script>
+  <script src="pwa.js?v=9"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
-  <script src="intro.js?v=8" defer></script>
+  <script src="intro.js?v=9" defer></script>
 </body>
 </html>

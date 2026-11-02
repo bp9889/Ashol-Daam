@@ -38,11 +38,14 @@
   addEventListener("offline", offlineNote);
 
   // ---------- 3. Install button ----------
-  // Chrome/Edge/Android offer installing; we keep that offer and show our own button.
-  // iPhone/iPad (Safari) has no such offer, so the button explains Share → Add to Home Screen.
+  // The buttons always show until the app is installed. Chrome/Edge/Android may offer their own
+  // install pop-up (sometimes only after you've used the site for a bit); when they have, the button
+  // opens it. Otherwise (iPhone, or before Chrome is ready) it shows the exact taps for that phone.
   let offer = null;
   const buttons = [...document.querySelectorAll("[data-install]")];
-  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const ua = navigator.userAgent;
+  const ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const phone = ios || /android/i.test(ua);
   const show = (on) => buttons.forEach((b) => {
     if (on && b.hidden) {
       b.hidden = false;
@@ -50,32 +53,45 @@
         { duration: 420, easing: "cubic-bezier(0.2, 0.9, 0.25, 1)" });
     } else if (!on) b.hidden = true;
   });
-  addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); offer = e; if (!installed()) show(true); });
+  addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); offer = e; });
   addEventListener("appinstalled", () => {
-    offer = null; show(false);
+    offer = null; show(false); banner(false);
     toast("Installed! Find Asol Dam on your home screen. On Android, you can now Share from Daraz to Asol Dam.", 6000);
   });
-  if (ios && !installed()) show(true);
+  if (!installed()) show(true);
 
   for (const b of buttons) b.addEventListener("click", async () => {
     if (offer) {
       offer.prompt();
       const { outcome } = await offer.userChoice.catch(() => ({}));
-      if (outcome === "accepted") show(false);
+      if (outcome === "accepted") { show(false); banner(false); }
       offer = null;
-    } else if (ios) {
-      iosHelp(b);
+    } else {
+      installHelp(b);
     }
   });
 
-  function iosHelp(from) {
+  // The taps differ by phone and browser; show the right ones.
+  function steps() {
+    if (ios && /CriOS|EdgiOS|FxiOS/.test(ua)) return ["Tap <b>Share</b> <span class='ih-icon'>⎋</span> in the address bar", "Choose <b>Add to Home Screen</b>", "Tap <b>Add</b>. Done!"];
+    if (ios) return ["Tap <b>Share</b> <span class='ih-icon'>⎋</span> at the bottom of Safari", "Scroll down, choose <b>Add to Home Screen</b>", "Tap <b>Add</b>. Done!"];
+    if (/SamsungBrowser/.test(ua)) return ["Tap the <b>menu ≡</b> at the bottom", "Choose <b>Add page to</b> → <b>Home screen</b>", "Tap <b>Add</b>. Done!"];
+    if (/Firefox/.test(ua) && phone) return ["Tap the <b>menu ⋮</b>", "Choose <b>Install</b> (or <b>Add to Home screen</b>)", "Tap <b>Add</b>. Done!"];
+    if (phone) return ["Tap Chrome's <b>menu ⋮</b> at the top right", "Choose <b>Install app</b> (or <b>Add to Home screen</b>)", "Tap <b>Install</b>. Done!"];
+    if (/Firefox/.test(ua)) return ["Firefox on computers can't install sites as apps", "Open this page in <b>Chrome</b> or <b>Edge</b>", "Click <b>Install app</b> there"];
+    return ["Click the <b>install icon</b> at the right end of the address bar", "Or open the browser <b>menu</b> → <b>Install Asol Dam</b>", "Click <b>Install</b>. Done!"];
+  }
+
+  function installHelp(from) {
     const card = $("installHelp");
     if (!card) return;
+    card.querySelector("ol").innerHTML = steps().map((s) => `<li>${s}</li>`).join("");
     card.hidden = false;
     const r = from.getBoundingClientRect();
-    card.style.top = `${Math.min(r.bottom + 10, innerHeight - card.offsetHeight - 10)}px`;
+    const below = r.bottom + 10 + card.offsetHeight < innerHeight;
+    card.style.top = `${below ? r.bottom + 10 : Math.max(10, r.top - card.offsetHeight - 10)}px`;
     card.style.left = `${Math.max(10, Math.min(r.right - card.offsetWidth, innerWidth - card.offsetWidth - 10))}px`;
-    if (!calm()) card.animate([{ opacity: 0, transform: "translateY(-8px) scale(0.97)" }, { opacity: 1, transform: "none" }],
+    if (!calm()) card.animate([{ opacity: 0, transform: `translateY(${below ? -8 : 8}px) scale(0.97)` }, { opacity: 1, transform: "none" }],
       { duration: 280, easing: "cubic-bezier(0.2, 0.9, 0.25, 1)" });
     const close = (e) => {
       if (e && card.contains(e.target) && !e.target.closest("[data-close-help]")) return;
@@ -85,6 +101,31 @@
     setTimeout(() => addEventListener("pointerdown", close, true), 0);
     card.querySelector("[data-close-help]").onclick = () => close();
   }
+
+  // ---------- 4. On phones: a "Get the app" bar slides up from the bottom ----------
+  // Shown a few seconds after opening; × hides it for a week.
+  const BANNER_KEY = "asol-app-banner-closed";
+  function banner(on) {
+    const bar = $("appBanner");
+    if (!bar) return;
+    if (!on) {
+      if (bar.hidden) return;
+      if (calm()) { bar.hidden = true; return; }
+      bar.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(110%)", opacity: 0 }],
+        { duration: 260, easing: "cubic-bezier(0.4, 0, 1, 1)" }).finished.then(() => { bar.hidden = true; }, () => { bar.hidden = true; });
+      return;
+    }
+    bar.hidden = false;
+    if (!calm()) bar.animate([{ transform: "translateY(110%)", opacity: 0 }, { transform: "none", opacity: 1 }],
+      { duration: 520, easing: "cubic-bezier(0.2, 0.9, 0.25, 1)" });
+  }
+  let closedAt = 0;
+  try { closedAt = Number(localStorage.getItem(BANNER_KEY)) || 0; } catch (e) {}
+  if (phone && !installed() && Date.now() - closedAt > 7 * 864e5) setTimeout(() => banner(true), 2500);
+  $("appBannerClose")?.addEventListener("click", () => {
+    banner(false);
+    try { localStorage.setItem(BANNER_KEY, String(Date.now())); } catch (e) {}
+  });
 
   // ---------- A small message that slides up from the bottom ----------
   let toastTimer = null;
