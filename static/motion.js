@@ -364,13 +364,155 @@
     }).observe(list, { childList: true });
   }
 
+  // ---------- 8. Scratch card: scratch the receipt's barcode with a ৳ coin for a surprise ----------
+  // The barcode is drawn on a "foil" you scratch off; bits of foil flake away as you go. Once about
+  // half is gone the rest dissolves, and "Click to avail the offer" pops in with a shine.
+  // It stays revealed for the rest of the visit.
+  function scratchCard() {
+    const box = $("scratch"), foil = $("scratchFoil"), link = $("offerLink"), key = $("scratchKey");
+    if (!box || !foil) return;
+    const ctx = foil.getContext("2d");
+    let drawnAt = "", scratched = false, revealed = false, last = null, moves = 0, travelled = 0;
+
+    const colour = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#22201C";
+    const paint = () => {
+      const w = box.clientWidth, h = box.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
+      if (!w || !h || revealed) return;
+      const sig = `${w}x${h}@${dpr}:${colour("--ink")}`;
+      if (sig === drawnAt) return;
+      if (scratched && drawnAt) return;  // don't repaint over a half-scratched card
+      drawnAt = sig;
+      foil.width = Math.round(w * dpr); foil.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = colour("--slip"); ctx.fillRect(0, 0, w, h);
+      // the barcode (same rhythm as the one printed on the receipt)
+      ctx.fillStyle = colour("--ink");
+      ctx.globalAlpha = 0.85;
+      const bars = [[0, 2], [4, 1], [9, 3]];
+      for (let x = 0; x < w; x += 14) for (const [o, bw] of bars) ctx.fillRect(x + o, 0, bw, h);
+      ctx.globalAlpha = 1;
+      // the label, on a little paper strip
+      const label = "SCRATCH FOR A SURPRISE";
+      ctx.font = "600 10px 'JetBrains Mono', ui-monospace, monospace";
+      const tw = ctx.measureText(label).width;
+      const lw = tw + 34, lh = 22, lx = (w - lw) / 2, ly = (h - lh) / 2;
+      ctx.fillStyle = colour("--slip"); ctx.fillRect(lx, ly, lw, lh);
+      ctx.strokeStyle = colour("--ink"); ctx.lineWidth = 1; ctx.strokeRect(lx + 0.5, ly + 0.5, lw - 1, lh - 1);
+      ctx.fillStyle = "#E7B04A"; ctx.beginPath(); ctx.arc(lx + 12, h / 2, 4.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = colour("--ink"); ctx.textBaseline = "middle"; ctx.fillText(label, lx + 22, h / 2 + 0.5);
+    };
+
+    const flakes = (x, y) => {
+      if (calm()) return;
+      for (let k = 0; k < 2; k++) {
+        const f = document.createElement("span");
+        const size = 2 + Math.random() * 3;
+        f.className = "flake";
+        f.style.width = `${size}px`; f.style.height = `${size * (0.6 + Math.random() * 0.8)}px`;
+        f.style.background = Math.random() < 0.6 ? colour("--ink") : colour("--muted");
+        box.appendChild(f);
+        const dx = (Math.random() - 0.5) * 40, dy = 26 + Math.random() * 40, spin = (Math.random() - 0.5) * 540;
+        f.animate([
+          { transform: `translate(${x}px, ${y}px) rotate(0deg)`, opacity: 1 },
+          { transform: `translate(${x + dx * 0.6}px, ${y - 8}px) rotate(${spin * 0.4}deg)`, opacity: 1, offset: 0.25 },
+          { transform: `translate(${x + dx}px, ${y + dy}px) rotate(${spin}deg)`, opacity: 0 },
+        ], { duration: 650 + Math.random() * 350, easing: "cubic-bezier(0.3, 0.1, 0.6, 1)" }).finished.then(() => f.remove(), () => f.remove());
+      }
+    };
+
+    const cleared = () => {
+      const { data } = ctx.getImageData(0, 0, foil.width, foil.height);
+      let clear = 0, total = 0;
+      for (let i = 3; i < data.length; i += 4 * 6) { total += 1; if (data[i] < 128) clear += 1; }
+      return clear / total;
+    };
+
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      box.classList.add("is-done");
+      link.removeAttribute("tabindex"); link.removeAttribute("aria-hidden");
+      if (calm()) { foil.style.opacity = "0"; return; }
+      foil.animate([{ opacity: 1, filter: "blur(0px)", transform: "scale(1)" }, { opacity: 0, filter: "blur(3px)", transform: "scale(1.06)" }],
+        { duration: 480, easing: "cubic-bezier(0.4, 0, 0.2, 1)", fill: "forwards" });
+      // a little burst of sparkles from the middle
+      for (let k = 0; k < 9; k++) {
+        const s = document.createElement("span");
+        s.className = "sparkle"; s.textContent = k % 3 ? "✦" : "৳"; s.setAttribute("aria-hidden", "true");
+        box.appendChild(s);
+        const a = (k / 9) * Math.PI * 2 + Math.random() * 0.4, r = 70 + Math.random() * 40;
+        s.animate([
+          { transform: "translate(-50%, -50%) scale(0.2)", opacity: 0 },
+          { transform: `translate(calc(-50% + ${Math.cos(a) * r * 0.7}px), calc(-50% + ${Math.sin(a) * r * 0.35}px)) scale(1)`, opacity: 1, offset: 0.45 },
+          { transform: `translate(calc(-50% + ${Math.cos(a) * r}px), calc(-50% + ${Math.sin(a) * r * 0.5 + 10}px)) scale(0.6)`, opacity: 0 },
+        ], { duration: 900, delay: 120 + k * 18, easing: "cubic-bezier(0.2, 0.9, 0.3, 1)", fill: "both" }).finished.then(() => s.remove(), () => s.remove());
+      }
+    };
+
+    const scratchTo = (x, y) => {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 26;
+      ctx.beginPath();
+      ctx.moveTo(last ? last.x : x, last ? last.y : y);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      travelled += last ? Math.hypot(x - last.x, y - last.y) : 0;
+      if (travelled > 12) { flakes(x, y); travelled = 0; }
+      last = { x, y };
+      moves += 1;
+      if (moves % 6 === 0 && cleared() > 0.5) reveal();
+    };
+    const point = (e) => { const r = foil.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+
+    foil.addEventListener("pointerdown", (e) => {
+      if (revealed) return;
+      paint();
+      scratched = true; box.classList.add("is-started");
+      foil.setPointerCapture(e.pointerId);
+      last = null;
+      const p = point(e); scratchTo(p.x, p.y);
+    });
+    foil.addEventListener("pointermove", (e) => {
+      if (revealed || !foil.hasPointerCapture(e.pointerId)) return;
+      const p = point(e); scratchTo(p.x, p.y);
+    });
+    const lift = () => { last = null; if (!revealed && scratched && cleared() > 0.5) reveal(); };
+    foil.addEventListener("pointerup", lift);
+    foil.addEventListener("pointercancel", lift);
+
+    // Keyboard: scratches itself in a few quick zig-zags, then reveals.
+    key.addEventListener("click", () => {
+      if (revealed) { link.focus(); return; }
+      paint(); scratched = true; box.classList.add("is-started");
+      const w = box.clientWidth, h = box.clientHeight;
+      const path = []; for (let i = 0; i <= 10; i++) path.push([(w * i) / 10, i % 2 ? h * 0.85 : h * 0.15]);
+      let i = 0; last = null;
+      const step = () => {
+        if (i >= path.length || revealed) { reveal(); setTimeout(() => link.focus(), 300); return; }
+        scratchTo(path[i][0], path[i][1]); i += 1;
+        setTimeout(step, calm() ? 0 : 40);
+      };
+      step();
+    });
+
+    // Draw the foil whenever the receipt is shown or resized, and again if the theme changes.
+    new ResizeObserver(paint).observe(box);
+    new MutationObserver(() => { if (!scratched) { drawnAt = ""; paint(); } })
+      .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { if (!scratched) { drawnAt = ""; paint(); } });
+    document.fonts?.ready.then(() => { if (!scratched) { drawnAt = ""; paint(); } });
+    paint();
+  }
+
   function start() {
     for (const logo of document.querySelectorAll(".logo")) glitch(logo);
     themeSwitch();
+    scratchCard();
     if ($("checkBtn")) roll($("checkBtn"));
     loader();
     for (const d of document.querySelectorAll("details.fold, details.unproven")) accordion(d);  // before glide: it moves lists
-    for (const id of ["rBuyList", "rUnprovenList", "rAltList", "watchList"]) glide($(id));
+    for (const id of ["rBuyList", "rUnprovenList", "rAltList", "watchList", "watchMore"]) glide($(id));
     lines();
     board($("rBuyList"));
   }

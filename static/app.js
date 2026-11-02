@@ -145,10 +145,29 @@ function renderFilters() {
   }
 }
 
+// The list on the left shows the first few products; a handle below pulls down the rest.
+const RECENT_SHOWN = 4;
+let showAllRecent = false;
+
+function recentRow(p) {
+  const title = el("span", { class: "recent-title", text: p.title }, p.is_demo ? el("small", { text: "Sample" }) : null);
+  const button = el("button", { type: "button" },
+    tile(p.image_url, p.title), title,
+    el("span", { class: "flag", "data-verdict": p.verdict.verdict, text: SHORT_LABEL[p.verdict.verdict] ?? "" }),
+    el("span", { class: "recent-price", text: money(p.verdict.price, p.currency) }),
+  );
+  button.addEventListener("click", () => openProduct(p.id, true));
+  const li = el("li", {}, button);
+  if (current && current.id === p.id) li.setAttribute("aria-current", "true");
+  return li;
+}
+
 function renderList() {
   renderFilters();
   const list = $("watchList");
+  const more = $("watchMore");
   list.textContent = "";
+  more.textContent = "";
   const shown = visibleProducts();
   $("watchEmpty").hidden = products.length > 0;
   $("filterEmpty").hidden = !(products.length && !shown.length);
@@ -156,17 +175,283 @@ function renderList() {
     ? "No real deals right now. Prices usually drop during big sales like 11.11."
     : "No fake discounts spotted right now.";
 
-  for (const p of shown) {
-    const title = el("span", { class: "recent-title", text: p.title }, p.is_demo ? el("small", { text: "Sample" }) : null);
-    const button = el("button", { type: "button" },
-      tile(p.image_url, p.title), title,
+  shown.slice(0, RECENT_SHOWN).forEach((p) => list.appendChild(recentRow(p)));
+  const rest = shown.slice(RECENT_SHOWN);
+  rest.forEach((p, i) => {
+    const row = recentRow(p);
+    row.style.setProperty("--i", i);
+    more.appendChild(row);
+  });
+  if (!rest.length) showAllRecent = false;
+  setRecentOpen(showAllRecent, rest.length);
+}
+
+function setRecentOpen(open, count = $("watchMore").children.length) {
+  showAllRecent = open;
+  const pull = $("recentPull");
+  pull.hidden = count === 0;
+  pull.setAttribute("aria-expanded", String(open));
+  $("recentPullLabel").textContent = open ? "Show less" : `Show ${plural(count, "more product")}`;
+  const more = $("recentMore");
+  if (open && !more.classList.contains("is-open")) {  // the rows flip in only when it opens, not on every redraw
+    more.classList.add("just-opened");
+    setTimeout(() => more.classList.remove("just-opened"), 1100);
+  }
+  more.classList.toggle("is-open", open);
+  $("recentMore").inert = !open;
+}
+
+function setupRecentPull() {
+  const pull = $("recentPull");
+  let dragged = false;
+  pull.addEventListener("click", () => {
+    if (dragged) { dragged = false; return; }
+    setRecentOpen(!showAllRecent);
+    if (!showAllRecent) $("watchList").scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "nearest" });
+  });
+  // You can also pull the handle down (or push it up) like a drawer: it stretches a little, and
+  // past a short distance it opens (or closes) when you let go, then springs back.
+  pull.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    const startY = event.clientY;
+    let dy = 0;
+    const move = (e) => {
+      dy = e.clientY - startY;
+      if (Math.abs(dy) > 4) dragged = true;
+      const pullTowards = showAllRecent ? Math.min(dy, 0) : Math.max(dy, 0);
+      const stretch = Math.sign(pullTowards) * Math.min(Math.abs(pullTowards) * 0.45, 26);
+      pull.style.transform = `translateY(${stretch}px)`;
+      pull.classList.toggle("is-armed", Math.abs(pullTowards) > 40);
+    };
+    const up = () => {
+      removeEventListener("pointermove", move);
+      removeEventListener("pointerup", up);
+      removeEventListener("pointercancel", up);
+      const from = pull.style.transform || "translateY(0)";
+      pull.style.transform = "";
+      pull.classList.remove("is-armed");
+      if (!reduceMotion()) pull.animate([{ transform: from }, { transform: "translateY(0)" }], { duration: 420, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" });
+      if (dragged && (showAllRecent ? dy < -40 : dy > 40)) setRecentOpen(!showAllRecent);
+      setTimeout(() => { dragged = false; }, 0);
+    };
+    addEventListener("pointermove", move);
+    addEventListener("pointerup", up);
+    addEventListener("pointercancel", up);
+  });
+}
+
+// ---------- search (Ctrl+K): find any product you've checked, from anywhere on the page ----------
+
+let paletteActive = 0;
+let paletteItems = [];
+let paletteOpener = null;
+let paletteMotion = [];  // the running open/close animations, so a new one can cancel the old
+
+function normalize(text) {
+  return (text || "").toLowerCase().normalize("NFKC");
+}
+
+function highlighted(text, query) {
+  const node = el("span", { class: "pr-title" });
+  const at = query ? normalize(text).indexOf(query) : -1;
+  if (at < 0) { node.textContent = text; return node; }
+  node.append(text.slice(0, at), el("mark", { text: text.slice(at, at + query.length) }), text.slice(at + query.length));
+  return node;
+}
+
+function renderPalette({ stagger = false } = {}) {
+  const raw = $("paletteInput").value.trim();
+  const query = normalize(raw);
+  const looksLikeLink = /daraz\.|^https?:\/\//i.test(raw);
+  const words = query.split(/\s+/).filter(Boolean);
+  paletteItems = looksLikeLink ? [] : products.filter((p) => {
+    const hay = normalize(`${p.title} ${p.variant || ""} ${SHORT_LABEL[p.verdict.verdict] || ""}`);
+    return words.every((w) => hay.includes(w));
+  });
+  const list = $("paletteList");
+  list.textContent = "";
+  paletteItems.slice(0, 30).forEach((p, i) => {
+    const li = el("li", { role: "option", id: `pal-${p.id}`, class: stagger ? "enter" : "" },
+      tile(p.image_url, p.title),
+      el("span", { class: "pr-text" }, highlighted(p.title, words[0] || ""),
+        el("small", { class: "mono", text: [p.variant, timeAgo(p.last_checked_at)].filter(Boolean).join(" · ") })),
       el("span", { class: "flag", "data-verdict": p.verdict.verdict, text: SHORT_LABEL[p.verdict.verdict] ?? "" }),
-      el("span", { class: "recent-price", text: money(p.verdict.price, p.currency) }),
-    );
-    button.addEventListener("click", () => openProduct(p.id, true));
-    const li = el("li", {}, button);
-    if (current && current.id === p.id) li.setAttribute("aria-current", "true");
+      el("span", { class: "pr-price", text: money(p.verdict.price, p.currency) }));
+    li.style.setProperty("--i", Math.min(i, 8));
+    li.addEventListener("click", () => choosePalette(i));
+    li.addEventListener("pointermove", () => { if (paletteActive !== i) setPaletteActive(i); });
     list.appendChild(li);
+  });
+  $("paletteHeading").textContent = looksLikeLink ? "Daraz link" : raw ? "Matches" : "Checked products";
+  $("paletteCount").textContent = looksLikeLink ? "" : String(paletteItems.length);
+  const empty = $("paletteEmpty");
+  empty.hidden = paletteItems.length > 0;
+  empty.textContent = looksLikeLink ? "Press Enter to check this link."
+    : !products.length ? "Nothing checked yet. Paste a Daraz link here to start."
+    : `Nothing you've checked matches “${raw}”. Paste its Daraz link to check it.`;
+  $("paletteActions").hidden = Boolean(raw);
+  setPaletteActive(paletteItems.length ? 0 : -1);
+}
+
+function setPaletteActive(i) {
+  paletteActive = i;
+  const rows = [...$("paletteList").children];
+  rows.forEach((row, k) => row.setAttribute("aria-selected", String(k === i)));
+  const row = rows[i];
+  $("paletteInput").setAttribute("aria-activedescendant", row ? row.id : "");
+  if (row) row.scrollIntoView({ block: "nearest" });
+  movePaletteMarker(row);
+}
+
+// One marker slides behind the chosen row, as you move with the arrow keys or the mouse.
+function movePaletteMarker(row) {
+  const list = $("paletteList");
+  let marker = list.parentElement.querySelector(".palette-marker");
+  if (!marker) {
+    marker = el("div", { class: "palette-marker", "aria-hidden": "true" });
+    list.parentElement.insertBefore(marker, list);
+  }
+  if (!row) { marker.style.opacity = "0"; return; }
+  const box = row.getBoundingClientRect(), host = list.parentElement.getBoundingClientRect();
+  const fresh = marker.style.opacity !== "1";
+  if (fresh) marker.classList.add("no-slide");
+  marker.style.transform = `translateY(${box.top - host.top}px)`;
+  marker.style.height = `${box.height}px`;
+  marker.style.opacity = "1";
+  if (fresh) { marker.getBoundingClientRect(); marker.classList.remove("no-slide"); }
+}
+
+function choosePalette(i) {
+  const raw = $("paletteInput").value.trim();
+  if (/daraz\./i.test(raw) && i < 0) {
+    closePalette();
+    $("url").value = raw;
+    $("checkForm").requestSubmit();
+    return;
+  }
+  const p = paletteItems[i];
+  if (!p) return;
+  closePalette();
+  openProduct(p.id, true);
+}
+
+function stopPaletteMotion() {
+  for (const a of paletteMotion) a.cancel();  // never leave a finished "fade away" stuck on the panel
+  paletteMotion = [];
+}
+
+function openPalette(opener = document.activeElement) {
+  const palette = $("palette");
+  if (!palette.hidden && !palette.classList.contains("is-closing")) return;
+  stopPaletteMotion();
+  palette.classList.remove("is-closing");
+  paletteOpener = opener;
+  palette.hidden = false;
+  $("paletteInput").value = "";
+  renderPalette({ stagger: true });
+  $("paletteInput").focus();
+  if (reduceMotion()) return;
+  // It grows out of the search button (or the middle of the screen if you used the keyboard).
+  const panel = palette.querySelector(".palette-panel");
+  const p = panel.getBoundingClientRect();
+  const from = opener?.id === "searchOpen" ? opener.getBoundingClientRect() : null;
+  const dx = from ? from.left + from.width / 2 - (p.left + p.width / 2) : 0;
+  const dy = from ? from.top + from.height / 2 - (p.top + 24) : -12;
+  paletteMotion = [
+    panel.animate([
+      { transform: `translate(${dx}px, ${dy}px) scale(${from ? 0.2 : 0.96})`, opacity: 0 },
+      { transform: "none", opacity: 1 },
+    ], { duration: 320, easing: "cubic-bezier(0.2, 0.9, 0.25, 1)" }),
+    palette.querySelector(".palette-backdrop").animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: "ease-out" }),
+  ];
+}
+
+function closePalette() {
+  const palette = $("palette");
+  if (palette.hidden || palette.classList.contains("is-closing")) return;
+  stopPaletteMotion();
+  const done = () => {
+    if (!palette.classList.contains("is-closing")) return;  // it was opened again meanwhile
+    palette.hidden = true;
+    palette.classList.remove("is-closing");
+    stopPaletteMotion();
+  };
+  paletteOpener?.focus?.({ preventScroll: true });
+  if (reduceMotion()) { palette.classList.add("is-closing"); return done(); }
+  palette.classList.add("is-closing");
+  const panel = palette.querySelector(".palette-panel");
+  const fade = panel.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-6px) scale(0.98)", opacity: 0 }],
+    { duration: 160, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" });
+  paletteMotion = [fade, palette.querySelector(".palette-backdrop").animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: "forwards" })];
+  fade.finished.then(done, () => {});
+}
+
+// The search button types out names from your own list ("Try “Vampire Blood”"), so it's clear
+// what it searches.
+function setupSearchHint() {
+  const hint = $("searchHint");
+  let i = 0, timer = null;
+  const examples = () => {
+    const names = products.filter((p) => !p.is_demo).map((p) => p.title.split(/\s+/).slice(0, 2).join(" ")).filter(Boolean);
+    return names.length ? [...new Set(names)].slice(0, 6) : ["perfume", "earbuds", "phone cover"];
+  };
+  const type = (text, k = 0) => {
+    hint.textContent = `Try “${text.slice(0, k)}`;
+    if (k < text.length) { timer = setTimeout(() => type(text, k + 1), 45); return; }
+    hint.textContent = `Try “${text}”`;
+    timer = setTimeout(() => erase(text, text.length), 2200);
+  };
+  const erase = (text, k) => {
+    hint.textContent = k ? `Try “${text.slice(0, k)}` : "";
+    if (k > 0) { timer = setTimeout(() => erase(text, k - 1), 22); return; }
+    const list = examples();
+    i = (i + 1) % list.length;
+    timer = setTimeout(() => type(list[i]), 380);
+  };
+  if (reduceMotion()) { hint.textContent = "by name, e.g. perfume"; return; }
+  timer = setTimeout(() => type(examples()[0]), 1200);
+}
+
+function setupPalette() {
+  $("searchOpen").addEventListener("click", (e) => openPalette(e.currentTarget));
+  addEventListener("keydown", (e) => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+    const open = !$("palette").hidden && !$("palette").classList.contains("is-closing");
+    if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (e.repeat) return;  // holding the keys down shouldn't flick it open and shut
+      open ? closePalette() : openPalette();
+    } else if (e.key === "Escape" && open) { e.preventDefault(); closePalette(); }
+    else if (e.key === "/" && !typing && $("palette").hidden) { e.preventDefault(); openPalette(); }
+  });
+  $("paletteInput").addEventListener("input", () => renderPalette());
+  $("paletteInput").addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); if (paletteItems.length) setPaletteActive((paletteActive + 1) % Math.min(paletteItems.length, 30)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); if (paletteItems.length) setPaletteActive((paletteActive - 1 + Math.min(paletteItems.length, 30)) % Math.min(paletteItems.length, 30)); }
+    else if (e.key === "Enter") { e.preventDefault(); choosePalette(paletteActive); }
+  });
+  $("palette").addEventListener("keydown", (e) => {
+    if (e.key === "Tab") {  // keep the keyboard inside the search while it's open
+      const stops = [...$("palette").querySelectorAll("input, button:not([hidden])")].filter((n) => n.offsetParent);
+      const first = stops[0], last = stops[stops.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+  for (const node of $("palette").querySelectorAll("[data-close]")) node.addEventListener("click", closePalette);
+  for (const button of document.querySelectorAll(".palette-action")) {
+    button.addEventListener("click", () => {
+      const action = button.dataset.action;
+      closePalette();
+      if (action === "paste") {
+        $("url").scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "center" });
+        $("url").focus({ preventScroll: true });
+      } else {
+        filter = action === "fake" ? "fake_discount" : "real_deal";
+        renderList();
+        $("watchList").scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "center" });
+      }
+    });
   }
 }
 
@@ -867,6 +1152,9 @@ async function start() {
   setupTheme();
   setupForm();
   setupFilters();
+  setupRecentPull();
+  setupPalette();
+  setupSearchHint();
   setupAlerts();
   await loadStatus();
   setInterval(loadStatus, 5 * 60 * 1000);

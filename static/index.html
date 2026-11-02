@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Hind+Siliguri:wght@500;700&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4">
-  <link rel="stylesheet" href="motion.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="motion.css?v=7">
   <script>
     try { const t = localStorage.getItem("asol-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
     // The intro logo waits for its arrival animation (shown plainly if motion is off or GSAP can't load).
@@ -21,7 +21,7 @@
       setTimeout(() => { if (!window.gsap) document.documentElement.classList.remove("intro-wait"); }, 2500);
     }
   </script>
-  <link rel="stylesheet" href="intro.css?v=4">
+  <link rel="stylesheet" href="intro.css?v=7">
 </head>
 <body>
   <a class="skip" href="#url">Skip to the link box</a>
@@ -128,7 +128,20 @@
             <button type="button" data-filter="fake_discount" aria-pressed="false">Fake</button>
           </div>
         </div>
+        <button type="button" class="recent-search" id="searchOpen" aria-haspopup="dialog" aria-controls="palette" aria-keyshortcuts="Control+K">
+          <span class="rs-glass"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></span>
+          <span class="rs-text"><span class="rs-label">Search your checked products</span><span class="rs-hint" id="searchHint" aria-hidden="true"></span></span>
+          <kbd class="mono" aria-hidden="true">Ctrl K</kbd>
+        </button>
         <ul class="recent-list" id="watchList"></ul>
+        <!-- The rest of the list (after the first 4) opens below when you pull the handle. -->
+        <div class="recent-more" id="recentMore">
+          <div class="recent-more-inner"><ul class="recent-list extra" id="watchMore"></ul></div>
+        </div>
+        <button type="button" class="pull" id="recentPull" aria-expanded="false" aria-controls="recentMore" hidden>
+          <span class="pull-label mono" id="recentPullLabel"></span>
+          <span class="pull-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9.5 12 15.5 18 9.5"/></svg></span>
+        </button>
         <p class="empty" id="watchEmpty" hidden>Nothing checked yet. Paste a Daraz link above to start.</p>
         <p class="empty" id="filterEmpty" hidden></p>
       </section>
@@ -212,8 +225,16 @@
             <p class="alert-message" id="alertMessage" role="status" aria-live="polite"></p>
           </details>
 
-          <div class="slip-foot" aria-hidden="true">
-            <div class="barcode"></div>
+          <div class="slip-foot">
+            <div class="scratch" id="scratch">
+              <a class="offer" id="offerLink" href="https://www.youtube.com/watch?v=dQw4w9WgXcQ&amp;list=RDdQw4w9WgXcQ&amp;start_radio=1"
+                 target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">
+                <span class="offer-kicker mono">Surprise unlocked</span>
+                <span class="offer-text">Click to avail the offer <span aria-hidden="true">→</span></span>
+              </a>
+              <canvas class="scratch-foil" id="scratchFoil" aria-hidden="true"></canvas>
+              <button type="button" class="visually-hidden scratch-key" id="scratchKey">Scratch the barcode for a surprise</button>
+            </div>
             <p class="mono" id="rFoot"></p>
           </div>
         </article>
@@ -254,15 +275,42 @@
     </aside>
   </div>
 
+  <!-- Search: find any product you've checked, from anywhere on the page (Ctrl+K or the search button). -->
+  <div class="palette" id="palette" hidden>
+    <div class="palette-backdrop" data-close></div>
+    <div class="palette-panel" role="dialog" aria-modal="true" aria-label="Search your checked products">
+      <div class="palette-bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+        <input id="paletteInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Search your checked products, or paste a Daraz link"
+               role="combobox" aria-expanded="true" aria-controls="paletteList" aria-autocomplete="list" aria-label="Search your checked products">
+        <button type="button" class="palette-close" data-close aria-label="Close search (Esc)">
+          <kbd class="mono" aria-hidden="true">Esc</kbd>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <p class="palette-label mono"><span id="paletteHeading">Checked products</span> <span class="count" id="paletteCount"></span></p>
+      <ul class="palette-list" id="paletteList" role="listbox" aria-label="Checked products"></ul>
+      <p class="palette-empty" id="paletteEmpty" hidden></p>
+      <div class="palette-actions" id="paletteActions">
+        <p class="palette-label mono">Quick actions</p>
+        <button type="button" class="palette-action" data-action="paste"><span class="pa-icon" aria-hidden="true">+</span>Check a new Daraz link</button>
+        <button type="button" class="palette-action" data-action="fake"><span class="pa-icon fake" aria-hidden="true">✕</span>Show my fake discounts</button>
+        <button type="button" class="palette-action" data-action="real"><span class="pa-icon real" aria-hidden="true">✓</span>Show my real deals</button>
+      </div>
+      <p class="palette-foot mono"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Ctrl</kbd><kbd>K</kbd> search anytime</span></p>
+    </div>
+  </div>
+
   <footer class="foot mono">
     <span>Asol Dam is an independent student project, not part of Daraz.</span>
     <span>Prices can be a few hours old. Check on Daraz before you buy.</span>
   </footer>
 
-  <script src="app.js?v=4"></script>
-  <script src="motion.js?v=4"></script>
+  <script src="app.js?v=7"></script>
+  <script src="motion.js?v=7"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
-  <script src="intro.js?v=4" defer></script>
+  <script src="intro.js?v=7" defer></script>
 </body>
 </html>

@@ -165,3 +165,40 @@ details.smooth > summary:hover::after { color: var(--ink); }
 
 /* ---------- Light / dark switch (a circle of the new colours spreads from the button) ---------- */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+
+/* ---------- 8. Scratch card: the receipt's barcode hides a surprise ---------- */
+.scratch { position: relative; width: 260px; height: 64px; margin: 0 auto; }
+.scratch-foil {
+  position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none;
+  /* a ৳ coin to scratch with */
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 30 30'%3E%3Ccircle cx='15' cy='15' r='12' fill='%23E7B04A' stroke='%2394660E' stroke-width='2'/%3E%3Ccircle cx='15' cy='15' r='8.5' fill='none' stroke='%2394660E' stroke-width='1' opacity='.6'/%3E%3Ctext x='15' y='19.5' font-size='12' font-family='Arial' font-weight='700' text-anchor='middle' fill='%2394660E'%3E%E0%A7%B3%3C/text%3E%3C/svg%3E") 15 15, pointer;
+}
+.scratch.is-done .scratch-foil { pointer-events: none; }
+/* A sheen glides over the foil now and then, inviting a scratch (stops once you start). */
+.scratch::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%) no-repeat -120% 0 / 60% 100%;
+}
+.offer {
+  position: absolute; inset: 0; display: grid; place-content: center; gap: 3px; text-decoration: none; color: var(--ink);
+  border: 1.5px dashed var(--fake); background: color-mix(in srgb, var(--fake) 7%, var(--slip));
+}
+.offer-kicker { font-size: 9.5px; color: var(--fake); letter-spacing: 0.14em; }
+.offer-text { position: relative; font-weight: 700; font-size: 16px; overflow: hidden; padding: 0 6px; }
+.scratch.is-done .offer:hover { background: color-mix(in srgb, var(--fake) 12%, var(--slip)); }
+.scratch.is-done .offer:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.flake { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 2; }
+.sparkle { position: absolute; left: 50%; top: 50%; z-index: 2; pointer-events: none; color: #E7B04A; font-size: 14px; line-height: 1; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .scratch:not(.is-started):not(.is-done)::after { animation: foil-sheen 3.6s cubic-bezier(0.45, 0, 0.55, 1) 1.2s infinite; }
+  .scratch.is-done .offer { animation: offer-pop 620ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .scratch.is-done .offer-text::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.7) 50%, transparent 70%) no-repeat -150% 0 / 50% 100%;
+    animation: offer-shine 2.8s ease-in-out 0.5s infinite;
+  }
+}
+@keyframes foil-sheen { 0% { opacity: 1; background-position: -120% 0; } 40%, 100% { opacity: 1; background-position: 260% 0; } }
+@keyframes offer-pop { from { transform: scale(0.86); } to { transform: none; } }
+@keyframes offer-shine { 0% { background-position: -150% 0; } 45%, 100% { background-position: 250% 0; } }
