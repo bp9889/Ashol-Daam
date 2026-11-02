@@ -4,7 +4,7 @@
    - Your checked products (/api/products…): the same, so offline you can still open them.
    - Everything else in /api (checking a new link, alerts…) needs the internet and isn't cached.
    - Fonts and the animation library from other sites: served from the cache, refreshed in the background. */
-const VERSION = "asol-dam-v3";
+const VERSION = "asol-dam-v4";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => {

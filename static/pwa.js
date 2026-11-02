@@ -56,7 +56,7 @@
   addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); offer = e; });
   addEventListener("appinstalled", () => {
     offer = null; show(false); banner(false);
-    toast("Installed! Find Asol Dam on your home screen. On Android, you can now Share from Daraz to Asol Dam.", 6000);
+    toast("Installed! Find Ashol Dam on your home screen. On Android, you can now Share from Daraz to Ashol Dam.", 6000);
   });
   if (!installed()) show(true);
 
@@ -79,7 +79,7 @@
     if (/Firefox/.test(ua) && phone) return ["Tap the <b>menu ⋮</b>", "Choose <b>Install</b> (or <b>Add to Home screen</b>)", "Tap <b>Add</b>. Done!"];
     if (phone) return ["Tap Chrome's <b>menu ⋮</b> at the top right", "Choose <b>Install app</b> (or <b>Add to Home screen</b>)", "Tap <b>Install</b>. Done!"];
     if (/Firefox/.test(ua)) return ["Firefox on computers can't install sites as apps", "Open this page in <b>Chrome</b> or <b>Edge</b>", "Click <b>Install app</b> there"];
-    return ["Click the <b>install icon</b> at the right end of the address bar", "Or open the browser <b>menu</b> → <b>Install Asol Dam</b>", "Click <b>Install</b>. Done!"];
+    return ["Click the <b>install icon</b> at the right end of the address bar", "Or open the browser <b>menu</b> → <b>Install Ashol Dam</b>", "Click <b>Install</b>. Done!"];
   }
 
   function installHelp(from) {
