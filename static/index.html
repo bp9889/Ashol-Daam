@@ -11,18 +11,64 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Hind+Siliguri:wght@500;700&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="motion.css?v=4">
   <script>
     try { const t = localStorage.getItem("asol-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+    // The intro logo waits for its arrival animation (shown plainly if motion is off or GSAP can't load).
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.documentElement.classList.add("intro-wait");
+      setTimeout(() => { if (!window.gsap) document.documentElement.classList.remove("intro-wait"); }, 2500);
+    }
   </script>
+  <link rel="stylesheet" href="intro.css?v=4">
 </head>
 <body>
   <a class="skip" href="#url">Skip to the link box</a>
 
-  <header class="top">
+  <!-- Intro: the logo, then scroll down to the checker. The logo glides into the header as you scroll. -->
+  <section class="intro" id="intro" aria-label="Ashol Dam">
+    <div class="intro-guides" aria-hidden="true"><i></i><i></i><i></i></div>
+    <button class="icon-button intro-theme" type="button" data-theme-toggle aria-label="Switch between light and dark">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+    </button>
+    <div class="intro-center">
+      <div class="intro-fade"><p class="intro-kicker mono">Daraz price check <span aria-hidden="true">·</span> Bangladesh</p></div>
+      <div class="mark-wrap">
+        <a class="logo intro-mark" id="introMark" href="#app" aria-label="আসল দাম, Ashol Dam" translate="no">
+          <span class="half"><span class="w"><span class="w-to bn" lang="bn">আসল</span><span class="w-from" aria-hidden="true">Ashol</span></span> <span class="w"><span class="w-to">Dam</span><span class="w-from bn" lang="bn" aria-hidden="true">দাম</span></span></span><span class="sep" aria-hidden="true">/</span><span class="half"><span class="w"><span class="w-to">Ashol</span><span class="w-from bn" lang="bn" aria-hidden="true">আসল</span></span> <span class="w"><span class="w-to bn" lang="bn">দাম</span><span class="w-from" aria-hidden="true">Dam</span></span></span>
+          <svg class="intro-pen" aria-hidden="true"><path/></svg>
+        </a>
+      </div>
+      <div class="intro-fade"><p class="intro-line">Is that discount real? Paste a Daraz link and see the <em>real price</em> before you pay.</p></div>
+    </div>
+    <!-- Side notes: what it does, in the empty columns on either side of the logo. -->
+    <aside class="intro-side intro-side-left" aria-label="How it works">
+      <p class="side-head"><span class="bn" lang="bn">কীভাবে কাজ করে</span><span class="mono">How it works</span></p>
+      <ol class="side-list">
+        <li><span class="mono n">01</span>Copy a product link from Daraz</li>
+        <li><span class="mono n">02</span>Paste it below and press Check</li>
+        <li><span class="mono n">03</span>Read the receipt: real deal or fake</li>
+      </ol>
+      <p class="side-foot mono">Prices re-checked at 10 AM &amp; 10 PM</p>
+    </aside>
+    <aside class="intro-side intro-side-right" aria-label="What it catches">
+      <p class="side-head"><span class="bn" lang="bn">যা ধরা পড়ে</span><span class="mono">What it catches</span></p>
+      <ul class="side-list">
+        <li><span class="mark no" aria-hidden="true">✕</span>Made-up “old prices”</li>
+        <li><span class="mark no" aria-hidden="true">✕</span>Prices raised just before 11.11</li>
+        <li><span class="mark yes" aria-hidden="true">✓</span>The same item, cheaper elsewhere</li>
+        <li><span class="mark yes" aria-hidden="true">✓</span>Delivery fees, counted in</li>
+      </ul>
+      <p class="side-foot mono"><span class="bn" lang="bn">আসল দাম জানুন</span> · know the real price</p>
+    </aside>
+    <div class="intro-fade intro-cue-wrap"><a class="intro-scroll mono" href="#app">Scroll to check a price <span class="arrow" aria-hidden="true">↓</span></a></div>
+  </section>
+
+  <header class="top" id="app">
     <div class="top-cell">
-      <a class="logo" href="/" aria-label="Asol Dam, home">
-        <span class="bn" lang="bn" translate="no">আসল দাম</span><span class="sep" aria-hidden="true">/</span><span translate="no">Asol Dam</span>
+      <a class="logo" href="/" aria-label="আসল দাম, Ashol Dam, home" translate="no">
+        <span class="half"><span class="w"><span class="w-to bn" lang="bn">আসল</span></span> <span class="w"><span class="w-to">Dam</span></span></span><span class="sep" aria-hidden="true">/</span><span class="half"><span class="w"><span class="w-to">Ashol</span></span> <span class="w"><span class="w-to bn" lang="bn">দাম</span></span></span>
       </a>
     </div>
     <div class="top-cell mono wide-only">
@@ -213,6 +259,10 @@
     <span>Prices can be a few hours old. Check on Daraz before you buy.</span>
   </footer>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=4"></script>
+  <script src="motion.js?v=4"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
+  <script src="intro.js?v=4" defer></script>
 </body>
 </html>

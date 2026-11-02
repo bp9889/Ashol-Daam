@@ -1,0 +1,91 @@
+/* Asol Dam: the intro. The logo arrives, then glides into the header as you scroll to the checker. */
+
+/* The logo is sized in em, so the big intro logo is an exact, larger copy of the header one. */
+.logo { gap: 0.42em; }
+.logo .bn { font-size: 1.16em; }
+
+/* Words of the logo: each sits in a little window it can roll through (see intro.js). */
+.logo .w { position: relative; display: inline-block; padding: 0.14em 0; margin: -0.14em 0; overflow-x: visible; overflow-y: clip; vertical-align: baseline; }
+.logo .w-to { display: inline-block; }
+.logo .w-from { position: absolute; left: 50%; top: 0.14em; transform: translateX(-50%); white-space: nowrap; visibility: hidden; }
+.baseline-probe { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+
+.intro {
+  /* No clipping: the logo travels out of this box on its way down to the header. */
+  position: relative; height: 100vh; height: 100svh; min-height: 520px;
+  display: grid; place-items: center;
+  border-bottom: 1px solid var(--rule);
+}
+/* The page's own column lines run up through the intro, so it reads as the same sheet of paper. */
+.intro-guides { position: absolute; inset: 0; display: grid; grid-template-columns: var(--left) minmax(0, 1fr) var(--right); pointer-events: none; }
+.intro-guides i:nth-child(1), .intro-guides i:nth-child(2) { border-right: 1px solid var(--rule); }
+@media (max-width: 1439px) {
+  .intro-guides { grid-template-columns: minmax(0, 1fr) var(--right); }
+  .intro-guides i:nth-child(3) { display: none; }
+  .intro-guides i:nth-child(2) { border-right: 0; }
+}
+@media (max-width: 860px) { .intro-guides { display: none; } }
+
+.intro-center { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0 16px; }
+.intro-kicker { margin: 0 0 clamp(18px, 3vh, 34px); }
+.mark-wrap { position: relative; }
+.intro-mark { position: relative; z-index: 30; font-size: clamp(30px, 7.4vw, 120px); color: var(--ink); will-change: transform; }
+.intro-mark:focus-visible { outline-offset: 10px; }
+.intro-line { margin: clamp(18px, 3.4vh, 36px) 0 0; max-width: 34ch; font-size: clamp(15px, 1.3vw, 18px); line-height: 1.5; color: var(--ink-2); }
+.intro-line em { font-style: normal; color: var(--ink); box-shadow: inset 0 -0.38em 0 rgba(176, 57, 46, 0.14); }
+
+/* The red pen circles আসল ("real"), like the corrections on the receipt. Placed by intro.js. */
+.intro-pen { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible; pointer-events: none;
+  fill: none; stroke: var(--fake); stroke-width: 2.6px; stroke-linecap: round; stroke-linejoin: round; }
+
+.intro-cue-wrap { position: absolute; left: 0; right: 0; bottom: clamp(18px, 4vh, 40px); z-index: 2; display: flex; justify-content: center; }
+.intro-scroll { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink-2); padding: 8px 10px; }
+.intro-scroll:hover { color: var(--ink); }
+.intro-scroll .arrow { display: inline-block; }
+@media (prefers-reduced-motion: no-preference) {
+  .intro-scroll .arrow { animation: cue 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+}
+@keyframes cue { 0%, 100% { transform: translateY(-2px); } 50% { transform: translateY(3px); } }
+
+/* Before the arrival animation starts: nothing flashes. (Removed if GSAP can't load.) */
+.intro-wait .intro-center, .intro-wait .intro-cue-wrap, .intro-wait .intro-side { visibility: hidden; }
+
+/* While the big logo is on its way, the header's small one is hidden; when it lands they swap. */
+.has-intro:not(.logo-landed) .top .logo { visibility: hidden; }
+.has-intro.logo-landed .intro-mark { visibility: hidden; }
+
+/* Phones: the header logo and the sale countdown share one line. */
+@media (max-width: 480px) {
+  .top .top-cell { padding: 12px; gap: 10px; }
+  .top .logo { font-size: 15px; }
+  .top #countdown { font-size: 10px; letter-spacing: 0.03em; }
+}
+
+/* ---------- Side notes, in the page's left and right columns ---------- */
+.intro-side {
+  position: absolute; z-index: 1; bottom: clamp(28px, 7vh, 72px);
+  display: grid; gap: 14px; color: var(--ink-2); font-size: 14px; line-height: 1.45; text-align: left;
+}
+.intro-side-left { left: 32px; width: calc(var(--left) - 64px); }
+.intro-side-right { right: 32px; width: calc(var(--right) - 64px); }
+.side-head { margin: 0; display: flex; align-items: baseline; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--rule); color: var(--ink); }
+.side-head .bn { font-size: 17px; }
+.side-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.side-list li { display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: baseline; }
+.side-list .n { color: var(--muted); }
+.side-list .mark { font-weight: 700; }
+.side-list .mark.no { color: var(--fake); }
+.side-list .mark.yes { color: var(--real); }
+.side-foot { margin: 2px 0 0; color: var(--muted); }
+.side-foot .bn { font-size: 13px; color: var(--ink-2); }
+/* Two-column screens: the left notes sit in the wide column, clear of "Scroll". */
+@media (max-width: 1439px) {
+  .intro-side-left { width: min(300px, calc(50vw - 200px)); }
+}
+@media (max-width: 1100px) { .intro-side-left { display: none; } }
+@media (max-width: 860px) { .intro-side { display: none; } }
+@media (max-height: 640px) { .intro-side { display: none; } }
+
+/* Light/dark switch on the intro, top right (the header has its own). */
+.intro-theme { position: absolute; top: 18px; right: 24px; z-index: 3; }
+@media (max-width: 860px) { .intro-theme { top: 14px; right: 16px; } }

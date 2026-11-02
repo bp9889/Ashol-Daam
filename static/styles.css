@@ -74,8 +74,8 @@ button, a, summary, input { touch-action: manipulation; }
 .top-cell { display: flex; align-items: center; gap: 14px; padding: 18px 32px; min-width: 0; white-space: nowrap; }
 .top-cell + .top-cell { border-left: 1px solid var(--rule); }
 .push { margin-left: auto; }
-.logo { white-space: nowrap; display: inline-flex; align-items: baseline; gap: 8px; font-weight: 700; font-size: 19px; letter-spacing: -0.01em; text-decoration: none; }
-.logo .bn { font-size: 22px; }
+.logo { white-space: nowrap; display: inline-flex; align-items: baseline; gap: 0.42em; font-weight: 700; font-size: 19px; letter-spacing: -0.01em; text-decoration: none; }
+.logo .bn { font-size: 1.16em; }
 .logo .sep { color: var(--muted); font-weight: 400; }
 .sale { color: var(--fake); }
 .icon-button {
@@ -358,7 +358,7 @@ h1 { font-weight: 700; font-size: 40px; line-height: 1.02; letter-spacing: -0.03
 
 @media (max-width: 860px) {
   .top-cell { padding: 14px 16px; }
-  .logo .sep, .logo .bn ~ span:last-child { display: none; }
+  .top .logo { font-size: 17px; }
   .layout { display: flex; flex-direction: column; }
   .col-left { display: contents; }
   .col-left .block { order: 1; border-left: 0 !important; border-right: 0 !important; border-bottom: 1px solid var(--rule); }

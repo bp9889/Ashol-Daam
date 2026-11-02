@@ -44,6 +44,16 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Asol Dam", version="0.2.0", lifespan=lifespan)
 
 
+@app.middleware("http")
+async def fresh_pages(request: Request, call_next):
+    """The website's files (HTML, CSS, JS) are checked for changes on every visit, so after an
+    update nobody sees a mix of old and new files. Unchanged files still aren't downloaded again."""
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-cache")
+    return response
+
+
 VISITOR_COOKIE = "asol_visitor"
 VISITOR_ID = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
 
