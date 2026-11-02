@@ -6,7 +6,7 @@ pip install -q --disable-pip-version-check -r requirements-local.txt
 rem If an older copy is still running, it keeps the port busy and you'd see old code.
 netstat -ano | findstr ":8000 " | findstr LISTENING >nul && (
   echo.
-  echo Asol Dam is already running in another window. Close that window first, then run this again.
+  echo Ashol Dam is already running in another window. Close that window first, then run this again.
   pause
   exit /b
 )

@@ -1,4 +1,4 @@
-# Put Asol Dam online for free (Vercel)
+# Put Ashol Dam online for free (Vercel)
 
 When the site runs on your laptop, prices are only checked while the laptop is on.
 This setup keeps everything running 24/7 at no cost:
@@ -11,14 +11,14 @@ This setup keeps everything running 24/7 at no cost:
 | Telegram alerts | Your bot | Messages come in through the website (webhook). |
 
 Vercel can't run a browser itself. Without step 6, pasting a product on the live site shows
-other sellers' sizes at their **regular** price (with a **Check its price** button) and only "free"
-delivery; the twice-daily checks on GitHub fill in the rest within a day. Step 6 makes it instant.
+other sellers' sizes at their **regular** price (with a **Check its price** button) and no delivery
+fees; the twice-daily checks on GitHub fill in the rest within a day. Step 6 fills in the rest during the check itself.
 
 ---
 
 ## 1. Code on GitHub
 
-Already done: the project is in your GitHub account as `asol-dam`.
+Already done: the project is in your GitHub account as `Ashol-Daam`.
 `.env` and `*.db` are in `.gitignore`, so secrets and your local database never go online.
 
 To upload later changes from your laptop, install Git (git-scm.com), then in the project folder:
@@ -34,7 +34,7 @@ Vercel puts every push live by itself within a minute or two.
 ## 2. Deploy the website
 
 1. Go to **vercel.com** and sign up with **Continue with GitHub**.
-2. **Add New… → Project**, find `asol-dam`, press **Import**. If you don't see it, press
+2. **Add New… → Project**, find `Ashol-Daam`, press **Import**. If you don't see it, press
    **Adjust GitHub App Permissions** and allow access to the repository.
 3. Leave the settings as they are and press **Deploy**.
 
@@ -43,12 +43,12 @@ Vercel puts every push live by itself within a minute or two.
 1. In your Vercel project: **Storage → Create Database → Neon** (free plan), region **Singapore**.
 2. Connect it to the project for all environments. Vercel adds `DATABASE_URL` for you.
 3. **Deployments →** the latest one **→ ⋯ → Redeploy**, so the site picks up the database.
-4. Open your site (`https://asol-dam-….vercel.app`) and paste a Daraz link.
+4. Open your site (`https://ashol-daam.vercel.app`) and paste a Daraz link.
 
 ## 4. Turn on the twice-daily checks (GitHub Actions)
 
 1. In Vercel: **Settings → Environment Variables**, reveal `DATABASE_URL` and copy it.
-2. In GitHub, in the `asol-dam` repository: **Settings → Secrets and variables → Actions → New repository secret**
+2. In GitHub, in the `Ashol-Daam` repository: **Settings → Secrets and variables → Actions → New repository secret**
    - Name `DATABASE_URL`, value: what you copied.
    - `TELEGRAM_BOT_TOKEN`: your bot token (only if you use alerts).
 3. Go to the **Actions** tab, open **Check prices**, press **Run workflow** to try it now.
@@ -72,7 +72,7 @@ Keep `DATABASE_URL` secret: anyone with it can read and change your database.
 
 To test alerts on your laptop again: `python -m app.telegram delete-webhook`.
 
-## 6. Instant sale prices and delivery fees on the live site (Browserless)
+## 6. Sale prices and delivery fees during each check on the live site (Browserless)
 
 1. Sign up free at **browserless.io** and copy your **API token** from the dashboard.
 2. In Vercel → **Settings → Environment Variables**, add
@@ -81,7 +81,7 @@ To test alerts on your laptop again: `python -m app.telegram delete-webhook`.
 3. Redeploy. Checks that open sellers' pages take 10–30 seconds; the page tells visitors to wait.
 
 The free plan has a monthly limit. When it runs out, or if Daraz shows Browserless a robot check,
-the site simply falls back to how it worked before step 6. Keep the token secret.
+the site falls back to how it worked before step 6. Keep the token secret.
 
 ---
 

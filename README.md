@@ -1,6 +1,6 @@
-# Asol Dam (আসল দাম)
+# Ashol Dam (আসল দাম)
 
-**Is that Daraz discount real?** Paste a Daraz product link and Asol Dam tells you in a few seconds:
+**Is that Daraz discount real?** Paste a Daraz product link and Ashol Dam tells you in a few seconds:
 
 - whether the "% off" is a real saving or a fake one,
 - which trusted seller sells the **same product** for less (price + delivery),
@@ -24,7 +24,8 @@ Live site: **https://ashol-daam.vercel.app**
 | **Price history** | Every product is re-checked at **10 AM and 10 PM** (Dhaka time), and a chart shows how the price moved. |
 | **Private history** | "Recently checked" shows only what *you* checked in your browser. |
 | **Telegram alerts** (optional) | Get a message when a price drops. |
-| **Install as an app** | "Install app" puts Asol Dam on your phone or PC. On Android, share a product from the Daraz app straight to Asol Dam. Products you've checked still open offline. |
+| **Search** | Find any product you've checked: the search box on the list, or **Ctrl + K** anywhere. The list shows 4 products; pull the handle for the rest. |
+| **Install as an app** | "Install app" puts Ashol Dam on your phone or PC. On Android, share a product from the Daraz app straight to Ashol Dam. Products you've checked still open offline. |
 
 ## How a check works
 

@@ -598,7 +598,7 @@ function renderResult(r, { fresh = true } = {}) {
   // At most three reasons, most important first, so the receipt stays easy to read.
   for (const reason of v.reasons.filter((x) => !HIDDEN_REASONS.test(x)).slice(0, 3)) reasons.appendChild(el("li", { text: reason }));
   $("rWhy").hidden = !reasons.children.length;
-  $("rFoot").textContent = `Checked by Asol Dam, ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(r.last_checked_at || Date.now()))}`;
+  $("rFoot").textContent = `Checked by Ashol Dam, ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(r.last_checked_at || Date.now()))}`;
 
   renderWhereToBuy(r);
   $("rBuyLoading").hidden = !(detailsPending(r) && detailsAsked.has(r.id));

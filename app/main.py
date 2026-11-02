@@ -45,7 +45,7 @@ async def lifespan(_: FastAPI):
 # The app manifest's type, so browsers recognise the site as an installable app.
 mimetypes.add_type("application/manifest+json", ".webmanifest")
 
-app = FastAPI(title="Asol Dam", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="Ashol Dam", version="0.2.0", lifespan=lifespan)
 
 
 @app.middleware("http")

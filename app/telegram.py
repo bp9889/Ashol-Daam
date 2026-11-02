@@ -81,8 +81,8 @@ def start_link(token: str) -> str:
 # ---- commands ------------------------------------------------------------
 
 HELP = (
-    "Hi! I'm the Asol Dam bot. I message you when a Daraz price you're watching really drops.\n\n"
-    "To set an alert, open a product on the Asol Dam website and press <b>Set alert</b>.\n\n"
+    "Hi! I'm the Ashol Dam bot. I message you when a Daraz price you're watching really drops.\n\n"
+    "To set an alert, open a product on the Ashol Dam website and press <b>Set alert</b>.\n\n"
     "/list shows your alerts\n/stop turns them all off"
 )
 
