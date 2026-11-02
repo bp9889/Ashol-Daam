@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Hind+Siliguri:wght@500;700&family=Caveat:wght@600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=11">
-  <link rel="stylesheet" href="motion.css?v=11">
+  <link rel="stylesheet" href="styles.css?v=12">
+  <link rel="stylesheet" href="motion.css?v=12">
   <script>
     try { const t = localStorage.getItem("asol-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
     // The intro logo waits for its arrival animation (shown plainly if motion is off or GSAP can't load).
@@ -27,7 +27,7 @@
       setTimeout(() => { if (!window.gsap) document.documentElement.classList.remove("intro-wait"); }, 2500);
     }
   </script>
-  <link rel="stylesheet" href="intro.css?v=11">
+  <link rel="stylesheet" href="intro.css?v=12">
 </head>
 <body>
   <a class="skip" href="#url">Skip to the link box</a>
@@ -57,12 +57,12 @@
         <li><span class="mono n">02</span>Paste it below and press Check</li>
         <li><span class="mono n">03</span>Read the receipt: real deal or fake</li>
       </ol>
-      <p class="side-foot mono">Prices re-checked at 10 AM &amp; 10 PM</p>
+      <p class="side-foot mono">Prices rechecked at 10 AM &amp; 10 PM</p>
     </aside>
     <aside class="intro-side intro-side-right" aria-label="What it catches">
       <p class="side-head"><span class="bn" lang="bn">যা ধরা পড়ে</span><span class="mono">What it catches</span></p>
       <ul class="side-list">
-        <li><span class="mark no" aria-hidden="true">✕</span>Made-up “old prices”</li>
+        <li><span class="mark no" aria-hidden="true">✕</span>Made up “old prices”</li>
         <li><span class="mark no" aria-hidden="true">✕</span>Prices raised just before 11.11</li>
         <li><span class="mark yes" aria-hidden="true">✓</span>The same item, cheaper elsewhere</li>
         <li><span class="mark yes" aria-hidden="true">✓</span>Delivery fees, counted in</li>
@@ -161,7 +161,7 @@
         <article class="slip" id="result" hidden aria-live="polite" aria-labelledby="rHeadline">
           <div class="slip-head">
             <figure class="photo" id="rPhoto" aria-hidden="true"></figure>
-            <p class="sample-note mono" id="rSample" hidden>Sample product, made-up prices</p>
+            <p class="sample-note mono" id="rSample" hidden>Sample product, made up prices</p>
             <p class="mono item" id="rTitle"></p>
             <p class="mono variant" id="rVariant" hidden></p>
             <p class="links mono">
@@ -217,7 +217,7 @@
           </details>
 
           <details class="fold" id="rAlert" hidden>
-            <summary class="mono">Price-drop alert</summary>
+            <summary class="mono">Price drop alert</summary>
             <form class="alert-form" id="alertForm" novalidate>
               <p class="small">We'll message you on Telegram. Leave the price empty to hear about any drop of 5% or more.</p>
               <div class="alert-row">
@@ -334,11 +334,11 @@
     <span>Prices can be a few hours old. Check on Daraz before you buy.</span>
   </footer>
 
-  <script src="app.js?v=11"></script>
-  <script src="motion.js?v=11"></script>
-  <script src="pwa.js?v=11"></script>
+  <script src="app.js?v=12"></script>
+  <script src="motion.js?v=12"></script>
+  <script src="pwa.js?v=12"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
-  <script src="intro.js?v=11" defer></script>
+  <script src="intro.js?v=12" defer></script>
 </body>
 </html>

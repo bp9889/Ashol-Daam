@@ -15,13 +15,13 @@ Live site: **https://ashol-daam.vercel.app**
 | Feature | In plain words |
 |---|---|
 | **Instant verdict** | Real deal, Fair price, Fake discount, Overpriced, or "can't tell yet", with the reasons. |
-| **Fake discount check** | Compares the price with other sellers of the same item and with its own price history. A made-up "old price" gets crossed out in red. |
+| **Fake discount check** | Compares the price with other sellers of the same item and with its own price history. A made up "old price" gets crossed out in red. |
 | **Price raised before a sale** | If a price went up recently and now shows a "discount" (common before 11.11 / 12.12), it's flagged. |
 | **Where to buy** | Sellers ranked by **price + delivery fee**, rating and number of reviews. Sellers with few reviews are listed separately. |
 | **Same product only** | Matches by the words that *name* the product and by the **product photo**, in the same Daraz category, kind of item, size and pack size. |
 | **Alternatives** | If no other seller has the exact item, you see similar items, clearly marked "not the same", which never affect the verdict. |
 | **Sizes** | For a 30 ML perfume, only other 30 ML listings are compared, with each size's own sale price. |
-| **Price history** | Every product is re-checked at **10 AM and 10 PM** (Dhaka time), and a chart shows how the price moved. |
+| **Price history** | Every product is rechecked at **10 AM and 10 PM** (Dhaka time), and a chart shows how the price moved. |
 | **Private history** | "Recently checked" shows only what *you* checked in your browser. |
 | **Telegram alerts** (optional) | Get a message when a price drops. |
 | **Search** | Find any product you've checked: the search box on the list, or **Ctrl + K** anywhere. The list shows 4 products; pull the handle for the rest. |
@@ -44,13 +44,13 @@ python -m venv ..\.venv
 ..\.venv\Scripts\activate
 pip install -r requirements-local.txt
 ```
-After that, just **double-click `start.bat`**. It installs anything new, opens `http://localhost:8000` and picks up code changes by itself.
+After that, just **double click `start.bat`**. It installs anything new, opens `http://localhost:8000` and picks up code changes by itself.
 
 Run the tests: `pytest`
 
 ## Put it online
 
-The live site runs on **Vercel** with a free **Neon** database, and **GitHub Actions** does the twice-daily checks. Step by step: see **[DEPLOY.md](DEPLOY.md)**.
+The live site runs on **Vercel** with a free **Neon** database, and **GitHub Actions** does the twice daily checks. Step by step: see **[DEPLOY.md](DEPLOY.md)**.
 
 To upload changes:
 ```powershell
@@ -78,7 +78,7 @@ tests/                  automatic tests, many built from real Daraz data
 
 ## Good to know
 
-- **Not part of Daraz.** An independent student project. Always double-check on Daraz before you buy.
+- **Not part of Daraz.** An independent student project. Always double check on Daraz before you buy.
 - **Prices can be a few hours old.**
 - Daraz sometimes shows **robot checks** to servers. The site then stops, never tries to get past them, and tries again at the next check.
 - Matching is careful on purpose: when it isn't sure two listings are the same item, it leaves them out (or shows them as alternatives).

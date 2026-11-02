@@ -38,10 +38,10 @@ def _seller(seller, title, price, original=None, rating=None, reviews=0, sold=0,
 STEAM_IRON_SELLERS = [
     _seller("Cheap Gadget Store", "Steam Iron 2200W Original Best Quality", 1599, 2999, rating=5.0, reviews=1, overseas=True),
     _seller("Budget House", "Steam Iron 2200 Watt", 1650, 2400, rating=3.1, reviews=47, sold=120),
-    _seller("Home Needs BD", "Steam Iron 2200W Non-stick Soleplate", 1690, 2200),
+    _seller("Home Needs BD", "Steam Iron 2200W Non stick Soleplate", 1690, 2200),
     _seller("Electro Mart", "2200 Watt Steam Iron with Spray", 1720, rating=4.7, reviews=212, sold=1500, free_shipping=True),
     _seller("Daily Bazar Online", "Steam Iron 2200W, Self Clean", 1750, 1990, rating=4.5, reviews=64, sold=230),
-    _seller("Ghorer Bazar Official", "Steam Iron 2200 W Anti-drip", 1850, 2100, rating=4.8, reviews=530, sold=2400, mall=True),
+    _seller("Ghorer Bazar Official", "Steam Iron 2200 W Anti drip", 1850, 2100, rating=4.8, reviews=530, sold=2400, mall=True),
     _seller("Smart Home Shop", "Steam Iron 2200W Ceramic Plate", 1790, 2490, rating=4.4, reviews=18, sold=60, is_this=True),
 ]
 
@@ -58,7 +58,7 @@ def seed_demo(session: Session) -> None:
         # Genuinely cheaper than ever.
         ("1.8 litre electric rice cooker", _series(80, 3200, 80, rng, {0: 2690, 1: 3190}), {0: 3500}, None),
         # Always ~৳1,850, but always "50% off ৳3,700".
-        ("Smart watch with heart-rate monitor", _series(70, 1850, 40, rng, {0: 1850}), "always:3700", None),
+        ("Smart watch with heart rate monitor", _series(70, 1850, 40, rng, {0: 1850}), "always:3700", None),
         # Normal everyday price.
         ("Waterproof laptop backpack, 30 litres", _series(60, 1450, 50, rng, {0: 1450}), {0: 1600}, None),
         # Just pasted, but 5 other sellers sell it: instant verdict.

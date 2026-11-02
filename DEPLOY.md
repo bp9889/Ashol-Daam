@@ -7,12 +7,12 @@ This setup keeps everything running 24/7 at no cost:
 |---|---|---|
 | Website | **Vercel** | Finds the FastAPI app in `app/main.py` by itself. No settings file needed. |
 | Database | **Neon** (PostgreSQL), added from inside Vercel | Vercel can't keep files, so the database lives here. |
-| Twice-daily price checks | **GitHub Actions** | Runs `python -m app.collector` at 10 AM and 10 PM Dhaka time, with Chrome, so sizes' sale prices are read too. |
+| Twice daily price checks | **GitHub Actions** | Runs `python -m app.collector` at 10 AM and 10 PM Dhaka time, with Chrome, so sizes' sale prices are read too. |
 | Telegram alerts | Your bot | Messages come in through the website (webhook). |
 
 Vercel can't run a browser itself. Without step 6, pasting a product on the live site shows
 other sellers' sizes at their **regular** price (with a **Check its price** button) and no delivery
-fees; the twice-daily checks on GitHub fill in the rest within a day. Step 6 fills in the rest during the check itself.
+fees; the twice daily checks on GitHub fill in the rest within a day. Step 6 fills in the rest during the check itself.
 
 ---
 
@@ -45,7 +45,7 @@ Vercel puts every push live by itself within a minute or two.
 3. **Deployments →** the latest one **→ ⋯ → Redeploy**, so the site picks up the database.
 4. Open your site (`https://ashol-daam.vercel.app`) and paste a Daraz link.
 
-## 4. Turn on the twice-daily checks (GitHub Actions)
+## 4. Turn on the twice daily checks (GitHub Actions)
 
 1. In Vercel: **Settings → Environment Variables**, reveal `DATABASE_URL` and copy it.
 2. In GitHub, in the `Ashol-Daam` repository: **Settings → Secrets and variables → Actions → New repository secret**
