@@ -1,5 +1,8 @@
-# Builds the Ashol Dam Android app (APK) on GitHub's computers.
-# Run it from the Actions tab: "Build Android app" → "Run workflow". The APK appears under "Artifacts".
+# Builds the Ashol Dam Android app (APK) on GitHub's computers, then:
+#   1. publishes it as a GitHub Release (shown on the repo page under "Releases"),
+#   2. puts it on the website (static/AsholDam.apk), so Android visitors download the newest one,
+#   3. keeps it as a run artifact too.
+# Run it from the Actions tab: "Build Android app" → "Run workflow".
 # Needs two repository secrets (Settings → Secrets and variables → Actions):
 #   ANDROID_KEYSTORE_BASE64    the signing key, as text (android-signing/keystore-base64.txt on your PC)
 #   ANDROID_KEYSTORE_PASSWORD  its password (android-signing/password.txt)
@@ -7,6 +10,9 @@ name: Build Android app
 
 on:
   workflow_dispatch:
+
+permissions:
+  contents: write  # to publish the release and put the APK on the website
 
 jobs:
   apk:
@@ -51,3 +57,33 @@ jobs:
           name: AsholDam-apk
           path: android/AsholDam.apk
           if-no-files-found: error
+
+      - name: Publish a GitHub Release with the APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep -oP "versionName '\K[^']+" app/build.gradle)
+          TAG="android-v$VERSION"
+          NOTES="Ashol Dam for Android, version $VERSION.
+
+          Android: download AsholDam.apk below, open it, allow \"Install unknown apps\" if asked, then tap Install.
+          It installs as an update over an older Ashol Dam. Share a product from the Daraz app to Ashol Dam to check it.
+
+          iPhone: open https://ashol-daam.vercel.app in Safari, tap Share, then Add to Home Screen."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" AsholDam.apk --clobber
+          else
+            gh release create "$TAG" AsholDam.apk --title "Ashol Dam $VERSION (Android)" --notes "$NOTES" --latest
+          fi
+
+      - name: Put the APK on the website
+        run: |
+          cp AsholDam.apk ../static/AsholDam.apk
+          cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add static/AsholDam.apk
+          if git diff --cached --quiet; then echo "Website already has this APK."; exit 0; fi
+          git commit -m "Website: newest Android app download"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

@@ -25,7 +25,7 @@ Live site: **https://ashol-daam.vercel.app**
 | **Private history** | "Recently checked" shows only what *you* checked in your browser. |
 | **Telegram alerts** (optional) | Get a message when a price drops. |
 | **Search** | Find any product you've checked: the search box on the list, or **Ctrl + K** anywhere. The list shows 4 products; pull the handle for the rest. |
-| **Install as an app** | "Install app" puts Ashol Dam on your phone or PC. On Android, share a product from the Daraz app straight to Ashol Dam. Products you've checked still open offline. |
+| **Get the app** | **Android:** "Get the app" on the site downloads the Ashol Dam app (APK); it's also under **Releases** on GitHub. Share a product from the Daraz app straight to Ashol Dam. **iPhone:** Safari → Share → Add to Home Screen. **PC:** "Install app" in Chrome or Edge. Products you've checked still open offline. |
 
 ## How a check works
 
@@ -50,8 +50,9 @@ Run the tests: `pytest`
 
 ## Android app (APK)
 
-`android/` is the Android app: a full screen wrapper around the live site (a Trusted Web Activity, made with Bubblewrap).
-GitHub builds it: **Actions → Build Android app → Run workflow**, then download **AsholDam-apk** from the run.
+`android/` is the Android app: the live site inside the app (a WebView), so it works on any phone, with or without Chrome.
+GitHub builds it: **Actions → Build Android app → Run workflow**. Each run publishes a **Release** with the APK (on the repo page)
+and puts the newest APK on the website (`static/AsholDam.apk`), where Android visitors download it with **Get the app**.
 It needs two repository secrets, `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` (see `.github/workflows/build-apk.yml`).
 The signing key stays on your computer in `android-signing/`; keep a backup, because updates must be signed with the same key.
 

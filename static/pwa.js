@@ -47,7 +47,20 @@
   const buttons = [...document.querySelectorAll("[data-install]")];
   const ua = navigator.userAgent;
   const ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const phone = ios || /android/i.test(ua);
+  const android = !ios && /android/i.test(ua);
+  const phone = ios || android;
+  // Android: the real Ashol Dam app (APK), downloaded straight from this site when it's there.
+  let apk = null;
+  if (android && !installed()) {
+    fetch("/AsholDam.apk", { method: "HEAD", cache: "no-store" }).then((r) => {
+      if (!r.ok) return;
+      const bytes = Number(r.headers.get("Content-Length")) || 0;
+      apk = { url: "/AsholDam.apk", size: bytes ? (bytes < 1e6 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1e6).toFixed(1)} MB`) : "" };
+      for (const b of buttons) b.querySelector("span").textContent = b.closest(".app-banner") ? "Download" : "Get the app";
+      const note = document.querySelector(".app-banner p span");
+      if (note) note.textContent = `Android app${apk.size ? ` · ${apk.size}` : ""} · Share from Daraz to check`;
+    }).catch(() => {});
+  }
   const show = (on) => buttons.forEach((b) => {
     if (on && b.hidden) {
       b.hidden = false;
@@ -63,7 +76,9 @@
   if (!installed()) show(true);
 
   for (const b of buttons) b.addEventListener("click", async () => {
-    if (offer) {
+    if (apk) {
+      installHelp(b);  // the Android app's download card
+    } else if (offer) {
       offer.prompt();
       const { outcome } = await offer.userChoice.catch(() => ({}));
       if (outcome === "accepted") { show(false); banner(false); }
@@ -75,6 +90,11 @@
 
   // The taps differ by phone and browser; show the right ones.
   function steps() {
+    if (apk) return [
+      `Tap <b>Download</b> below${apk.size ? ` (${apk.size})` : ""}`,
+      "Open <b>AsholDam.apk</b> (from the notification or <b>Files → Downloads</b>). If asked, allow <b>Install unknown apps</b>",
+      "Tap <b>Install</b>. Done! You can now <b>Share</b> from Daraz to Ashol Dam",
+    ];
     if (ios && /CriOS|EdgiOS|FxiOS/.test(ua)) return ["Tap <b>Share</b> <span class='ih-icon'>⎋</span> in the address bar", "Choose <b>Add to Home Screen</b>", "Tap <b>Add</b>. Done!"];
     if (ios) return ["Tap <b>Share</b> <span class='ih-icon'>⎋</span> at the bottom of Safari", "Scroll down, choose <b>Add to Home Screen</b>", "Tap <b>Add</b>. Done!"];
     if (/SamsungBrowser/.test(ua)) return ["Tap the <b>menu ≡</b> at the bottom", "Choose <b>Add page to</b> → <b>Home screen</b>", "Tap <b>Add</b>. Done!"];
@@ -88,8 +108,15 @@
     const card = $("installHelp");
     if (!card) return;
     card.querySelector("ol").innerHTML = steps().map((s) => `<li>${s}</li>`).join("");
+    card.querySelector(".ih-head").textContent = apk ? "Get Ashol Dam for Android" : "Install Ashol Dam";
+    const get = card.querySelector(".ih-download");
+    get.hidden = !apk;
+    if (apk) {
+      get.href = apk.url;
+      get.onclick = () => toast("Downloading Ashol Dam… Open it from your notifications when it's done.", 5000);
+    }
     card.hidden = false;
-    const r = from.getBoundingClientRect();
+    const r = (from.closest(".app-banner") || from).getBoundingClientRect();  // above the whole bar, not inside it
     const below = r.bottom + 10 + card.offsetHeight < innerHeight;
     card.style.top = `${below ? r.bottom + 10 : Math.max(10, r.top - card.offsetHeight - 10)}px`;
     card.style.left = `${Math.max(10, Math.min(r.right - card.offsetWidth, innerWidth - card.offsetWidth - 10))}px`;
