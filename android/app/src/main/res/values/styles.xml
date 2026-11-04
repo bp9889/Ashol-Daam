@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light: paper colours, dark status bar icons. The site follows this (light or dark). -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/page</item>
+        <item name="android:statusBarColor">@color/bars</item>
+        <item name="android:navigationBarColor">@color/bars</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

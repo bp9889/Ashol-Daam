@@ -3,7 +3,9 @@
   "use strict";
   const $ = (id) => document.getElementById(id);
   const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const installed = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  // Installed: the home-screen web app, or the Android app (it adds "AsholDamApp" to its browser name).
+  const installed = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true
+    || /AsholDamApp/.test(navigator.userAgent);
 
   // ---------- 1. Shared from the Daraz app (Share → Asol Dam) ----------
   // Android sends the shared text and link as ?title=…&text=…&url=…; Daraz puts its short link
