@@ -85,5 +85,6 @@ jobs:
           git add static/AsholDam.apk
           if git diff --cached --quiet; then echo "Website already has this APK."; exit 0; fi
           git commit -m "Website: newest Android app download"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
+          # (the build marked gradlew as runnable, a change git sees; --autostash sets it aside)
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
