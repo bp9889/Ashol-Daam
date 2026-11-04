@@ -34,7 +34,7 @@
   "isChromeOSOnly": false,
   "isMetaQuest": false,
   "fullScopeUrl": "https://ashol-daam.vercel.app/",
-  "minSdkVersion": 21,
+  "minSdkVersion": 24,
   "shareTarget": {
     "action": "https://ashol-daam.vercel.app/",
     "method": "GET",
