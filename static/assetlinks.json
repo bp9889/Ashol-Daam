@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.vercel.ashol_daam.twa",
+      "sha256_cert_fingerprints": [
+        "E8:E2:05:2D:7F:52:1B:51:CE:53:0D:28:AB:FA:12:27:78:CE:45:9D:4A:50:CA:6C:FE:61:E2:12:B3:43:C3:84"
+      ]
+    }
+  }
+]

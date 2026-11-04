@@ -6,3 +6,11 @@ __pycache__/
 tests/test.db
 .vercel/
 node_modules/
+# Android app: the signing key and passwords never go online; build output stays local
+android-signing/
+*.keystore
+*.jks
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties

@@ -1,0 +1,56 @@
+{
+  "packageId": "app.vercel.ashol_daam.twa",
+  "host": "ashol-daam.vercel.app",
+  "name": "Ashol Dam",
+  "launcherName": "Ashol Dam",
+  "display": "standalone",
+  "themeColor": "#ECE8DF",
+  "themeColorDark": "#151412",
+  "navigationColor": "#22201C",
+  "navigationColorDark": "#151412",
+  "navigationDividerColor": "#22201C",
+  "navigationDividerColorDark": "#151412",
+  "backgroundColor": "#22201C",
+  "enableNotifications": false,
+  "startUrl": "/?source=app",
+  "iconUrl": "https://ashol-daam.vercel.app/icons/icon-512.png",
+  "maskableIconUrl": "https://ashol-daam.vercel.app/icons/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "asholdam"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "unknown",
+  "webManifestUrl": "https://ashol-daam.vercel.app/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": false,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://ashol-daam.vercel.app/",
+  "minSdkVersion": 21,
+  "shareTarget": {
+    "action": "https://ashol-daam.vercel.app/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [],
+  "appVersion": "1"
+}

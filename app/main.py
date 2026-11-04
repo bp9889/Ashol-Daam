@@ -198,4 +198,11 @@ def health():
 
 
 # The website itself. Mounted last so /api routes win.
+@app.get("/.well-known/assetlinks.json", include_in_schema=False)
+def asset_links():
+    """Tells Android that the Ashol Dam app (signed with our key) belongs to this site, so the app
+    opens it full screen without a browser address bar."""
+    return Response((config.BASE_DIR / "static" / "assetlinks.json").read_text(), media_type="application/json")
+
+
 app.mount("/", StaticFiles(directory=config.BASE_DIR / "static", html=True), name="static")

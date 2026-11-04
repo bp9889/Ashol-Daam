@@ -48,6 +48,13 @@ After that, just **double click `start.bat`**. It installs anything new, opens `
 
 Run the tests: `pytest`
 
+## Android app (APK)
+
+`android/` is the Android app: a full screen wrapper around the live site (a Trusted Web Activity, made with Bubblewrap).
+GitHub builds it: **Actions → Build Android app → Run workflow**, then download **AsholDam-apk** from the run.
+It needs two repository secrets, `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` (see `.github/workflows/build-apk.yml`).
+The signing key stays on your computer in `android-signing/`; keep a backup, because updates must be signed with the same key.
+
 ## Put it online
 
 The live site runs on **Vercel** with a free **Neon** database, and **GitHub Actions** does the twice daily checks. Step by step: see **[DEPLOY.md](DEPLOY.md)**.
