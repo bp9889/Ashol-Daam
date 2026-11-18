@@ -10,6 +10,7 @@
   const target = document.querySelector(".top .logo");
   const root = document.documentElement;
   if (!intro || !mark || !target) return;
+  if (root.classList.contains("no-intro")) return;  // skipped (see the script in index.html)
 
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
 

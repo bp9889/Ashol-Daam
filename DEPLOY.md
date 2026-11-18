@@ -61,14 +61,17 @@ Keep `DATABASE_URL` secret: anyone with it can read and change your database.
 
 ## 5. Telegram alerts on the live site (optional)
 
-1. In Vercel → **Settings → Environment Variables**, add `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`
-   and `TELEGRAM_WEBHOOK_SECRET` (any long random text), then redeploy.
-2. On your laptop, in the project folder (with your venv active), PowerShell:
-   ```powershell
-   $env:TELEGRAM_BOT_TOKEN="your-token"; $env:TELEGRAM_WEBHOOK_SECRET="the-same-secret"
-   python -m app.telegram set-webhook https://your-site.vercel.app
-   ```
-3. Message your bot `/start`. It should reply.
+1. In Telegram, message **@BotFather**, send `/newbot`, pick a name and a username ending in `bot`.
+   It replies with a **token** (looks like `123456:ABC-...`). Keep it secret.
+2. In Vercel → **Settings → Environment Variables**, add `TELEGRAM_BOT_TOKEN` with that token
+   (all environments), then **Deployments → ⋯ → Redeploy**. That's all: the site finds the bot's
+   username and connects the bot to itself (no command to run, no other settings).
+3. In GitHub → **Settings → Secrets and variables → Actions**, add the same `TELEGRAM_BOT_TOKEN`,
+   so the twice daily checks can send the alerts (they also reconnect the bot if needed).
+4. Message your bot `/start`. It should reply. On the site, open a product and press **Set alert**.
+
+Optional: `TELEGRAM_WEBHOOK_SECRET` (any long random text) to choose the webhook's hidden address
+yourself; by default it's made from the token.
 
 To test alerts on your laptop again: `python -m app.telegram delete-webhook`.
 

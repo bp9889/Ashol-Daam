@@ -247,14 +247,14 @@ class DarazAdapter(Adapter):
                 return link
         return None
 
-    def see_prices(self, urls: list[str]) -> dict:
+    def see_prices(self, urls: list[str], fresh: bool = False) -> dict:
         from .. import browser
 
-        return browser.read_prices(urls)
+        return browser.read_prices(urls, fresh=fresh)
 
     def read_shown_price(self, data: ProductData) -> bool:
         """Open the page in a hidden browser and read the price shown for this size/option."""
-        seen = self.see_prices([data.url]).get(data.url)
+        seen = self.see_prices([data.url], fresh=True).get(data.url)
         if seen is None or not same_option(seen.option, data.variant):
             return False
         data.price = seen.price

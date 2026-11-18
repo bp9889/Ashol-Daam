@@ -31,6 +31,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_MODE: webhook     # the hosted site receives Telegram messages
+          PUBLIC_URL: https://ashol-daam.vercel.app  # the bot is pointed here if it isn't already
           SEED_DEMO_DATA: "0"
           BROWSER_PRICES: "1"
           BROWSER_CHANNEL: chrome

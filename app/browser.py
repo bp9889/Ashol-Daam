@@ -76,9 +76,10 @@ def status() -> dict:
         why = f"couldn't start: {state.broken}"
     else:
         why = None
+    # Public, so it never describes the service address or its token (not even its length).
     return {"working": why is None and not state.last_error,
             "uses": "browser service" if config.BROWSER_WS_URL else "this computer's browser",
-            "problem": why, "last_error": state.last_error, "service": _describe(config.BROWSER_WS_URL)}
+            "problem": why, "last_error": state.last_error}
 
 
 def _describe(address: str) -> dict | None:
@@ -102,13 +103,58 @@ CACHE_SECONDS = 600  # a page read in the last 10 minutes isn't opened again
 _cache: dict[str, tuple[float, SeenPrice]] = {}
 
 
-def read_prices(urls: list[str], timeout_s: float = 25) -> dict[str, SeenPrice]:
-    """Open each page and read the price shown. Pages that fail are simply missing from the result."""
+SHARED_CACHE_HOURS = 3  # a page any server read this recently (saved in the database) isn't opened again
+
+
+def _saved_reads(urls: list[str]) -> dict[str, SeenPrice]:
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import select
+
+    from .db import SessionLocal
+    from .models import PageRead
+
+    since = datetime.now(timezone.utc) - timedelta(hours=SHARED_CACHE_HOURS)
+    found = {}
+    try:
+        with SessionLocal() as session:
+            for row in session.scalars(select(PageRead).where(PageRead.url.in_(urls))):
+                read_at = row.read_at if row.read_at.tzinfo else row.read_at.replace(tzinfo=timezone.utc)
+                if read_at >= since:
+                    found[row.url] = SeenPrice(
+                        price=float(row.price), option=row.option,
+                        original=float(row.original_price) if row.original_price is not None else None,
+                        delivery=float(row.delivery) if row.delivery is not None else None)
+    except Exception as exc:  # the shared cache is a bonus: never break a check because of it
+        log.info("Couldn't read saved page reads: %s", exc)
+    return found
+
+
+def _save_reads(seen: dict[str, SeenPrice]) -> None:
+    from .db import SessionLocal
+    from .models import PageRead, utcnow
+
+    try:
+        with SessionLocal() as session:
+            for url, s in seen.items():
+                session.merge(PageRead(url=url, price=s.price, original_price=s.original, option=s.option,
+                                       delivery=s.delivery, read_at=utcnow()))
+            session.commit()
+    except Exception as exc:  # e.g. two servers saving the same page at once: fine to skip
+        log.info("Couldn't save page reads: %s", exc)
+
+
+def read_prices(urls: list[str], timeout_s: float = 25, fresh: bool = False) -> dict[str, SeenPrice]:
+    """Open each page and read the price shown. Pages that fail are simply missing from the result.
+    fresh=True: always open the page (the product being checked itself, so its price is current)."""
     urls = list(dict.fromkeys(u for u in urls if u))
     if not urls or not available():
         return {}
-    now = time.monotonic()
-    cached = {u: hit[1] for u in urls if (hit := _cache.get(u)) and now - hit[0] < CACHE_SECONDS}
+    cached: dict[str, SeenPrice] = {}
+    if not fresh:
+        now = time.monotonic()
+        cached = {u: hit[1] for u in urls if (hit := _cache.get(u)) and now - hit[0] < CACHE_SECONDS}
+        cached.update(_saved_reads([u for u in urls if u not in cached]))
     urls = [u for u in urls if u not in cached]
     if not urls:
         return cached
@@ -128,6 +174,8 @@ def read_prices(urls: list[str], timeout_s: float = 25) -> dict[str, SeenPrice]:
     worker.join(timeout_s + 20)
     for url, seen in result.items():
         _cache[url] = (time.monotonic(), seen)
+    if result:
+        _save_reads(result)
     return {**cached, **result}
 
 

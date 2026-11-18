@@ -93,6 +93,21 @@ class Alert(Base):
     product: Mapped[Product] = relationship()
 
 
+class PageRead(Base):
+    """What a seller's page showed when the hidden browser last opened it. Shared by every server
+    (and the twice daily checks), so the same page isn't opened again within a few hours: saves
+    time and the browser service's monthly allowance."""
+
+    __tablename__ = "page_reads"
+
+    url: Mapped[str] = mapped_column(Text, primary_key=True)
+    price: Mapped[float] = mapped_column(Numeric(12, 2))
+    original_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    option: Mapped[str | None] = mapped_column(Text, nullable=True)
+    delivery: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Visit(Base):
     """"This browser checked this product." Keeps each visitor's "Recently checked" list private.
     `visitor` is a random id stored in a cookie: no name, no login, nothing personal."""

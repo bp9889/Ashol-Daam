@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -37,6 +38,7 @@ async def lifespan(_: FastAPI):
             seed_demo(session)
     scheduler.start()
     telegram.start_polling()
+    telegram.ensure_webhook_soon()  # hosted site: points the bot at this site by itself
     yield
     scheduler.stop()
     telegram.stop_polling()
@@ -56,6 +58,10 @@ async def fresh_pages(request: Request, call_next):
     response = await call_next(request)
     if not request.url.path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-cache")
+        # Vercel's CDN keeps a copy until the next deploy (each deploy starts with an empty cache),
+        # so visitors get the files straight from the CDN instead of waking up the Python app.
+        if config.ON_VERCEL and response.status_code == 200 and request.url.path != "/sw.js":
+            response.headers.setdefault("Vercel-CDN-Cache-Control", "max-age=31536000")
     return response
 
 
@@ -181,15 +187,19 @@ def create_alert(product_id: int, body: AlertRequest, session: Session = Depends
 
 @app.post("/api/telegram/webhook/{secret}")
 async def telegram_webhook(secret: str, request: Request):
-    expected = config.TELEGRAM_WEBHOOK_SECRET
+    expected = telegram.webhook_secret()
     if not expected or not hmac.compare_digest(secret, expected):
         raise HTTPException(status_code=404)
     update = await request.json()
-    with SessionLocal() as session:
-        try:
-            telegram.handle_update(session, update)
-        except telegram.TelegramError as exc:
-            logging.getLogger("asol_dam.telegram").warning("Webhook reply failed: %s", exc)
+
+    def handle() -> None:
+        with SessionLocal() as session:
+            try:
+                telegram.handle_update(session, update)
+            except telegram.TelegramError as exc:
+                logging.getLogger("asol_dam.telegram").warning("Webhook reply failed: %s", exc)
+
+    await run_in_threadpool(handle)  # database and Telegram calls block; keep them off the event loop
     return {"ok": True}
 
 

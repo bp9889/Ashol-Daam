@@ -83,13 +83,29 @@ function tile(imageUrl, title) {
   return box;
 }
 
-async function api(path, options = {}) {
-  const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options });
+const SLOW_MESSAGE = "Daraz is taking too long to answer. Try again in a minute.";
+
+// timeout: how long to wait (ms) before giving up, so a button never stays on "Checking…" for ever.
+async function api(path, { timeout = 20000, ...options } = {}) {
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), timeout);
+  let response;
+  try {
+    response = await fetch(path, { headers: { "Content-Type": "application/json" }, signal: stop.signal, ...options });
+  } catch (err) {
+    if (err.name !== "AbortError") throw err;  // no connection: a TypeError, as before
+    const error = new Error(SLOW_MESSAGE);
+    error.status = 504;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
   // Served from the app's saved copies because there's no connection (see sw.js).
   if (response.headers.get("X-Asol-Saved")) dispatchEvent(new CustomEvent("asol:saved"));
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(typeof body.detail === "string" ? body.detail : "Something went wrong. Try again.");
+    const fallback = response.status === 504 || response.status === 502 ? SLOW_MESSAGE : "Something went wrong. Try again.";
+    const error = new Error(typeof body.detail === "string" ? body.detail : fallback);
     error.body = body;
     error.status = response.status;
     throw error;
@@ -464,8 +480,14 @@ function setupFilters() {
   }
 }
 
+// Remembered in this browser: you've used the site, so next time it opens straight on the checker.
+function markSeen() {
+  try { localStorage.setItem("asol-seen", "1"); } catch (e) {}
+}
+
 async function loadList() {
   products = await api("/api/products");
+  if (products.some((p) => !p.is_demo)) markSeen();
   renderList();
 }
 
@@ -492,9 +514,16 @@ function detailsPending(r) {
 async function loadDetails(r) {
   if (!detailsPending(r) || detailsAsked.has(r.id)) return;
   detailsAsked.add(r.id);
-  $("rBuyLoading").hidden = false;
+  const note = $("rBuyLoading");
+  const first = note.textContent;
+  note.hidden = false;
+  // Opening sellers' pages takes 20–40 seconds: say what's happening, so it doesn't look stuck.
+  const steps = [
+    setTimeout(() => { note.textContent = "Opening sellers' pages for sale prices and delivery fees. This usually takes 20–40 seconds…"; }, 10000),
+    setTimeout(() => { note.textContent = "Almost done. Some sellers' pages are slow to open…"; }, 40000),
+  ];
   try {
-    const full = await api(`/api/products/${r.id}/details`, { method: "POST" });
+    const full = await api(`/api/products/${r.id}/details`, { method: "POST", timeout: 90000 });
     detailsAsked.add(`done:${r.id}`);
     if (current && current.id === r.id) {
       const y = window.scrollY;
@@ -505,7 +534,9 @@ async function loadDetails(r) {
     detailsAsked.add(`done:${r.id}`);  // keep the quick result; don't keep retrying
     if (current && current.id === r.id) renderNumbers(current);
   } finally {
-    if (!current || current.id === r.id) $("rBuyLoading").hidden = true;
+    steps.forEach(clearTimeout);
+    note.textContent = first;
+    if (!current || current.id === r.id) note.hidden = true;
   }
 }
 
@@ -1067,22 +1098,69 @@ async function checkLink(url, price = null, knownPrice = null) {
   const body = { url };
   if (price) body.price = price;              // typed by you: always used
   else if (knownPrice) body.known_price = knownPrice;  // shown in "Where to buy": saves re-reading the page
-  const r = await api("/api/track", { method: "POST", body: JSON.stringify(body) });
+  const r = await api("/api/track", { method: "POST", body: JSON.stringify(body), timeout: 60000 });
   $("priceAsk").hidden = true;
   pendingUrl = null;
   pendingListed = null;
   showMessage("");
   $("url").value = "";
-  await loadList();
+  syncCheckLabel();
+  markSeen();
+  // The verdict first; "Recently checked" updates right after, without holding it up.
   renderResult(r);
   history.replaceState(null, "", `#p=${r.id}`);
   $("result").scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth" });
+  loadList().catch(() => {});
+}
+
+// ---------- one tap: paste the link and check it ----------
+// Phones: with the box empty, the button reads the copied link itself. Not inside the Android app,
+// whose browser doesn't let pages read the clipboard (there, Share from Daraz does the same).
+const canReadClipboard = () => Boolean(window.isSecureContext && navigator.clipboard?.readText)
+  && !/AsholDamApp/.test(navigator.userAgent);
+
+function darazLink(text) {
+  const found = String(text || "").match(/(?:https?:\/\/)?[^\s"'<>]*daraz\.[a-z.]+\/[^\s"'<>]*/i);
+  return found ? found[0] : null;
+}
+
+function syncCheckLabel() {
+  const button = $("checkBtn");
+  if (button.disabled) return;
+  const label = !$("url").value.trim() && canReadClipboard() ? "Paste & check" : "Check";
+  // motion.js turns the label into rolling letters (and remembers it in data-label): only redo on a change.
+  if ((button.dataset.label || button.textContent.trim()) !== label) button.textContent = label;
+}
+
+// The copied link, or null (with the reason shown) if there isn't one we can use.
+async function linkFromClipboard() {
+  let text = "";
+  try {
+    text = await navigator.clipboard.readText();
+  } catch (e) {
+    showMessage("Paste the Daraz link into the box (press and hold, then Paste).", true);
+    $("url").focus();
+    return null;
+  }
+  const link = darazLink(text);
+  if (!link) {
+    showMessage(text.trim() ? "What you copied isn't a Daraz link. In the Daraz app tap Share, then Copy link."
+      : "Nothing copied yet. In the Daraz app tap Share, then Copy link.", true);
+    return null;
+  }
+  $("url").value = link;
+  return link;
 }
 
 function setupForm() {
   $("checkForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const url = $("url").value.trim();
+    if ($("checkBtn").disabled) return;
+    let url = $("url").value.trim();
+    if (!url && canReadClipboard()) {
+      url = await linkFromClipboard();
+      if (!url) return;  // linkFromClipboard said why
+    }
     if (!url) { showMessage("Paste a Daraz product link first.", true); $("url").focus(); return; }
     if (!/daraz\./i.test(url)) {
       showMessage("That isn't a Daraz link. Copy the link from the Daraz app or website and paste it here.", true);
@@ -1104,9 +1182,17 @@ function setupForm() {
     } finally {
       clearTimeout(slow);
       button.disabled = false;
-      button.textContent = "Check";
+      syncCheckLabel();
     }
   });
+
+  // Pasting a Daraz link starts the check straight away: no need to press Check too.
+  $("url").addEventListener("input", syncCheckLabel);
+  $("url").addEventListener("paste", () => setTimeout(() => {
+    syncCheckLabel();
+    if (darazLink($("url").value) && !$("checkBtn").disabled) $("checkForm").requestSubmit();
+  }, 0));
+  syncCheckLabel();
 
   $("priceAsk").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1140,8 +1226,8 @@ function setupForm() {
     button.disabled = true;
     button.textContent = "Checking…";
     try {
-      renderResult(await api(`/api/products/${current.id}/refresh`, { method: "POST" }), { fresh: false });
-      await loadList();
+      renderResult(await api(`/api/products/${current.id}/refresh`, { method: "POST", timeout: 60000 }), { fresh: false });
+      loadList().catch(() => {});
     } catch (err) {
       if (err.body?.need_price) askForPrice(current.url, err.body);
       else $("rChecked").textContent = err.message;
@@ -1166,7 +1252,7 @@ async function start() {
   setupPalette();
   setupSearchHint();
   setupAlerts();
-  await loadStatus();
+  loadStatus();  // at the same time as the list, not before it
   setInterval(loadStatus, 5 * 60 * 1000);
 
   let resizeTimer;

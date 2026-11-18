@@ -47,6 +47,15 @@
 }
 @keyframes cue { 0%, 100% { transform: translateY(-2px); } 50% { transform: translateY(3px); } }
 
+/* Phones: a shorter intro, so the link box is on the first screen without scrolling. */
+@media (max-width: 860px) {
+  .intro { height: 46vh; height: 46svh; min-height: 300px; }
+  .intro-cue-wrap { display: none; }
+}
+
+/* Returning visitors and the app: no intro at all. */
+.no-intro .intro { display: none; }
+
 /* Before the arrival animation starts: nothing flashes. (Removed if GSAP can't load.) */
 .intro-wait .intro-center, .intro-wait .intro-cue-wrap, .intro-wait .intro-side { visibility: hidden; }
 

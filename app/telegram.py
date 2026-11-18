@@ -13,6 +13,8 @@ To switch a hosted site to webhook mode:  python -m app.telegram set-webhook htt
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import html
 import logging
 import secrets
@@ -172,13 +174,53 @@ def escape(text: str) -> str:
     return html.escape(text, quote=False)
 
 
+# ---- webhook (hosted site) ----------------------------------------------------
+
+
+def webhook_secret() -> str:
+    """The hidden part of the webhook address. TELEGRAM_WEBHOOK_SECRET if set; otherwise made from
+    the bot token, so the token is the only thing to set up (and nobody can guess it without it)."""
+    if config.TELEGRAM_WEBHOOK_SECRET:
+        return config.TELEGRAM_WEBHOOK_SECRET
+    if not config.TELEGRAM_BOT_TOKEN:
+        return ""
+    return hmac.new(config.TELEGRAM_BOT_TOKEN.encode(), b"ashol-dam-webhook", hashlib.sha256).hexdigest()[:40]
+
+
+def webhook_url(site: str) -> str:
+    return site.rstrip("/") + f"/api/telegram/webhook/{webhook_secret()}"
+
+
+def ensure_webhook() -> bool:
+    """Point the bot at this site, unless it already is. True if it had to be changed."""
+    wanted = webhook_url(config.PUBLIC_URL)
+    if call("getWebhookInfo").get("url") == wanted:
+        return False
+    call("setWebhook", url=wanted, allowed_updates=["message"])
+    log.info("Telegram webhook set to %s/api/telegram/webhook/…", config.PUBLIC_URL)
+    return True
+
+
+def ensure_webhook_soon() -> None:
+    """On the hosted site: check the webhook in the background when the app starts, so adding
+    TELEGRAM_BOT_TOKEN on Vercel is all it takes (no command to run)."""
+    if not enabled() or config.TELEGRAM_MODE != "webhook" or not config.PUBLIC_URL:
+        return
+
+    def run() -> None:
+        try:
+            ensure_webhook()
+        except TelegramError as exc:
+            log.warning("Telegram: couldn't set the webhook: %s", exc)
+
+    threading.Thread(target=run, name="telegram-webhook", daemon=True).start()
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "set-webhook":
-        if not config.TELEGRAM_WEBHOOK_SECRET:
-            sys.exit("Set TELEGRAM_WEBHOOK_SECRET first (any long random string).")
-        url = sys.argv[2].rstrip("/") + f"/api/telegram/webhook/{config.TELEGRAM_WEBHOOK_SECRET}"
+        url = webhook_url(sys.argv[2])
         call("setWebhook", url=url, allowed_updates=["message"])
-        print(f"Webhook set. Telegram will now send messages to {url}")
+        print(f"Webhook set. Telegram will now send messages to {sys.argv[2].rstrip('/')}/api/telegram/webhook/…")
     elif len(sys.argv) == 2 and sys.argv[1] == "delete-webhook":
         call("deleteWebhook")
         print("Webhook removed. Polling mode works again.")

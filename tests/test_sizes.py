@@ -209,7 +209,7 @@ def test_one_paste_is_enough(monkeypatch):
     shown = {mine_url: SeenPrice(999, 1200, "30ML spray", 90), other_30ml: SeenPrice(699, 1200, "30 ML Spary", 0)}
     asked = []
 
-    def see(self, urls):
+    def see(self, urls, fresh=False):
         asked.append(sorted(urls))
         return {u: shown[u] for u in urls if u in shown}
 
@@ -272,7 +272,7 @@ def test_keeps_the_linked_size_when_daraz_redirects_to_the_main_page(monkeypatch
     # With the hidden browser, the page for the 30 ML link shows ৳699 (old ৳1,200).
     wanted_url = "https://www.daraz.com.bd/products/vampire-blood-i575021547-s12671878402.html"
     monkeypatch.setattr(DarazAdapter, "see_prices",
-                        lambda self, urls: {u: SeenPrice(699, 1200, "30 ML Spary", 0) for u in urls if u == wanted_url})
+                        lambda self, urls, fresh=False: {u: SeenPrice(699, 1200, "30 ML Spary", 0) for u in urls if u == wanted_url})
     data = fake.fetch("https://www.daraz.com.bd/products/i575021547-s12671878402.html")
     assert (data.external_id, data.variant, data.price, data.original_price) == (
         "i575021547-s12671878402", "30 ML Spary", 699, 1200)
@@ -289,7 +289,7 @@ def test_clicking_a_seller_reuses_the_price_where_to_buy_showed(monkeypatch):
     opened = []
     monkeypatch.setattr(DarazAdapter, "fetch", lambda self, url, manual_price=None: real_fetch(fake, url, manual_price))
     monkeypatch.setattr(DarazAdapter, "search", lambda self, q, host_url=None: fake.parse_search(SEARCH))
-    monkeypatch.setattr(DarazAdapter, "see_prices", lambda self, urls: opened.append(urls) or {})
+    monkeypatch.setattr(DarazAdapter, "see_prices", lambda self, urls, fresh=False: opened.append(urls) or {})
     with TestClient(app) as client, SessionLocal() as session:
         for old in session.query(Product).filter(Product.external_id == "i575021547-s12671878402"):
             session.delete(old)

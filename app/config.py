@@ -63,4 +63,9 @@ TELEGRAM_BOT_TOKEN = _env("TELEGRAM_BOT_TOKEN")
 TELEGRAM_BOT_USERNAME = _env("TELEGRAM_BOT_USERNAME").lstrip("@")
 # "polling" (default, works on a laptop) or "webhook" (for a hosted site, see DEPLOY.md)
 TELEGRAM_MODE = _env("TELEGRAM_MODE", "webhook" if ON_VERCEL else "polling")
-TELEGRAM_WEBHOOK_SECRET = _env("TELEGRAM_WEBHOOK_SECRET")
+TELEGRAM_WEBHOOK_SECRET = _env("TELEGRAM_WEBHOOK_SECRET")  # optional: made from the bot token when empty
+# The site's public address, for pointing the Telegram bot at it. Vercel provides its own
+# (VERCEL_PROJECT_PRODUCTION_URL, e.g. "ashol-daam.vercel.app"), so nothing to set there.
+PUBLIC_URL = (_env("PUBLIC_URL") or _env("VERCEL_PROJECT_PRODUCTION_URL")).rstrip("/")
+if PUBLIC_URL and "://" not in PUBLIC_URL:
+    PUBLIC_URL = "https://" + PUBLIC_URL

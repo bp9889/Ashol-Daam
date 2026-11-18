@@ -101,7 +101,7 @@ class Adapter(ABC):
         None if it doesn't sell that size. Stores without this just return None."""
         return None
 
-    def see_prices(self, urls: list[str]) -> dict:
+    def see_prices(self, urls: list[str], fresh: bool = False) -> dict:
         """Prices as a shopper sees them on each page ({url: SeenPrice}), for pages whose data doesn't
         include the sale price. Stores that don't need this return nothing."""
         return {}

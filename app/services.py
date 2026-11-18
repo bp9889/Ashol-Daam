@@ -4,11 +4,11 @@ import logging
 import re
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 
-from sqlalchemy.orm import Session, object_session
+from sqlalchemy.orm import Session, object_session, selectinload
 
 from . import config
 from .adapters import Adapter, AdapterError, ProductData, get_adapter
@@ -41,7 +41,25 @@ def find_product(session: Session, source: str, external_id: str) -> Product | N
 
 
 def latest_market(product: Product) -> MarketCheck | None:
-    return product.market_checks[-1] if product.market_checks else None
+    """The newest seller comparison. Read on its own (one small query), so showing a product never
+    loads every older comparison and its full seller list."""
+    session = object_session(product)
+    if session is None or product.id is None:
+        return product.market_checks[-1] if product.market_checks else None
+    return session.scalar(select(MarketCheck).where(MarketCheck.product_id == product.id)
+                          .order_by(MarketCheck.checked_at.desc(), MarketCheck.id.desc()).limit(1))
+
+
+KEEP_MARKET_CHECKS = 3  # older seller lists are never shown; the price history lives in price_snapshots
+
+
+def prune_market_checks(session: Session, product: Product) -> None:
+    keep = select(MarketCheck.id).where(MarketCheck.product_id == product.id) \
+        .order_by(MarketCheck.checked_at.desc(), MarketCheck.id.desc()).limit(KEEP_MARKET_CHECKS)
+    keep_ids = list(session.scalars(keep))
+    if keep_ids:
+        session.execute(delete(MarketCheck).where(MarketCheck.product_id == product.id,
+                                                  MarketCheck.id.not_in(keep_ids)))
 
 
 def market_outdated(product: Product) -> bool:
@@ -64,7 +82,8 @@ def known_prices(session: Session | None, ids: set[str], skip: str | None = None
         return {}
     since = datetime.now(timezone.utc) - timedelta(days=KNOWN_PRICE_DAYS)
     found = {}
-    for product in session.scalars(select(Product).where(Product.external_id.in_(ids), Product.is_demo.is_(False))):
+    for product in session.scalars(select(Product).where(Product.external_id.in_(ids), Product.is_demo.is_(False))
+                                   .options(selectinload(Product.snapshots))):
         latest = product.snapshots[-1] if product.snapshots else None
         if product.variant is not None and latest and _aware(latest.captured_at) >= since:
             found[product.external_id] = latest
@@ -230,9 +249,14 @@ def update_market(session: Session, product: Product, adapter: Adapter, force: b
         high_price=market.high,
         listings=market.listings,
         detailed=detailed,
+        product_id=product.id,
     )
-    product.market_checks.append(check)
+    session.add(check)  # added directly: appending to product.market_checks would load every old one
+    session.flush()
+    prune_market_checks(session, product)
     session.commit()
+    if "market_checks" in product.__dict__:  # already loaded in this session: keep it in step
+        session.expire(product, ["market_checks"])
     return check
 
 
@@ -311,10 +335,13 @@ def add_details(session: Session, product: Product) -> Product:
     return product
 
 
-def market_info(product: Product, listings: list[dict] | None = None) -> MarketInfo | None:
+_UNSET = object()
+
+
+def market_info(product: Product, listings: list[dict] | None = None, check=_UNSET) -> MarketInfo | None:
     """What other sellers charge. Worked out from the listings themselves (when they carry ids),
     so prices confirmed on this site since the last search count too."""
-    check = latest_market(product)
+    check = latest_market(product) if check is _UNSET else check
     if check is None:
         return None
     as_float = lambda v: float(v) if v is not None else None  # noqa: E731
@@ -340,11 +367,11 @@ def report(product: Product) -> dict:
         for s in product.snapshots
     ]
     check = latest_market(product)
-    listings = with_known_prices(product, check.listings or []) if check is not None else []
+    listings = with_known_prices(product, check.listings or [], check) if check is not None else []
     if product.delivery is not None:
         listings = [dict(l, delivery=float(product.delivery)) if l.get("is_this") and l.get("delivery") is None else l
                     for l in listings]
-    result = analyze(points, product.currency, market_info(product, listings))
+    result = analyze(points, product.currency, market_info(product, listings, check))
     latest = product.snapshots[-1] if product.snapshots else None
     where = rank(listings) if check is not None else {"ranked": [], "unproven": []}
     point_to_better_seller(result, where, product.currency)
@@ -380,14 +407,14 @@ def report(product: Product) -> dict:
     }
 
 
-def with_known_prices(product: Product, listings: list[dict]) -> list[dict]:
+def with_known_prices(product: Product, listings: list[dict], check=_UNSET) -> list[dict]:
     """Prices confirmed on this site AFTER the seller list was built (e.g. you just checked the
     other listing and typed its sale price) are shown straight away, without a new search."""
     if product.is_demo:
         return listings
     known = known_prices(object_session(product), {l.get("id") for l in listings if not l.get("is_this")},
                          skip=product.external_id)
-    check = latest_market(product)
+    check = latest_market(product) if check is _UNSET else check
     built = _aware(check.checked_at) if check is not None and check.checked_at else None
     out = []
     for l in listings:
@@ -459,8 +486,10 @@ def visitor_products(session: Session, visitor: str) -> list[Product]:
     mine = session.scalars(
         select(Product).join(Visit, Visit.product_id == Product.id)
         .where(Visit.visitor == visitor).order_by(Visit.added_at.desc())
+        .options(selectinload(Product.snapshots))  # one query for all price histories, not one each
     ).all()
-    samples = session.scalars(select(Product).where(Product.is_demo.is_(True)).order_by(Product.id)).all()
+    samples = session.scalars(select(Product).where(Product.is_demo.is_(True)).order_by(Product.id)
+                              .options(selectinload(Product.snapshots))).all()
     return list(mine) + list(samples)
 
 

@@ -35,6 +35,13 @@ def run(stop: threading.Event | None = None, log: Callable[[str], None] = print)
                 telegram.process_updates(session, timeout=0)
             except telegram.TelegramError as exc:
                 log(f"Telegram: {exc}")
+        # Hosted site: make sure the bot still sends messages to it (in case the site couldn't).
+        if telegram.enabled() and config.TELEGRAM_MODE == "webhook" and config.PUBLIC_URL:
+            try:
+                if telegram.ensure_webhook():
+                    log("Telegram: bot connected to the website.")
+            except telegram.TelegramError as exc:
+                log(f"Telegram: {exc}")
 
         products = session.scalars(select(Product).where(Product.is_demo.is_(False))).all()
         due = [p for p in products if not recently_checked(p)]
