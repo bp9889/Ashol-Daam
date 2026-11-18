@@ -10,14 +10,19 @@
   const target = document.querySelector(".top .logo");
   const root = document.documentElement;
   if (!intro || !mark || !target) return;
-  if (root.classList.contains("no-intro")) return;  // skipped (see the script in index.html)
 
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const toApp = (smooth) => scrollTo({ top: intro.offsetHeight, behavior: smooth && !calm ? "smooth" : "auto" });
 
-  // A shared product link (#p=…) goes straight to the checker.
-  if (/(^#|&)(p=\d+|app)/.test(location.hash)) requestAnimationFrame(() => toApp(false));
+  // Returning visitors, the app, shares and product links (#p=…) open on the checker; the intro
+  // is still there above it (see the script in index.html, which decides before the hash changes).
+  const startAtApp = root.classList.contains("start-at-app") || /(^#|&)(p=\d+|app)/.test(location.hash);
+  if (startAtApp) {
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    toApp(false);                              // now, so the scroll animation measures from here
+    requestAnimationFrame(() => toApp(false));  // and once more after the first paint
+  }
   for (const link of intro.querySelectorAll('a[href="#app"]')) {
     link.addEventListener("click", (e) => { e.preventDefault(); toApp(true); });
   }
@@ -25,7 +30,6 @@
   const ready = () => root.classList.remove("intro-wait");
   if (calm || !window.gsap || !window.ScrollTrigger) { mark.dataset.ready = "1"; ready(); return; }  // a plain, still intro
   gsap.registerPlugin(ScrollTrigger);
-  document.body.classList.add("has-intro");
 
   const words = [...mark.querySelectorAll(".w")];
   const froms = words.map((w) => w.querySelector(".w-from"));
@@ -98,7 +102,14 @@
     gsap.set(tos, { y: (i, el) => below(el) });
     gsap.set(words, { width: (i) => froms[i].offsetWidth });
     ready();
-    arrive.play();
+    if (startAtApp) {
+      // Opened on the checker: the logo is already in place when you scroll up to it. The scroll
+      // animation is attached after that, so it starts from the finished logo, not a half-arrived one.
+      arrive.progress(1);
+      setupScroll();
+    } else {
+      arrive.play();
+    }
   };
   (document.fonts ? Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1000))]) : Promise.resolve()).then(begin);
 
@@ -114,32 +125,40 @@
     return { x: to.x - from.x, y: to.y - from.y, scale: target.offsetWidth / mark.offsetWidth };
   };
 
-  gsap.to(mark, {
-    x: () => delta().x,
-    y: () => delta().y,
-    scale: () => delta().scale,
-    transformOrigin: "0 0",
-    ease: "power1.inOut",
-    scrollTrigger: { trigger: intro, start: "top top", end: "bottom top", scrub: 0.6, invalidateOnRefresh: true },
-    onUpdate() { document.body.classList.toggle("logo-landed", this.progress() > 0.995); },
-  });
-  // Everything else in the intro steps back in the first part of the scroll.
-  const stepBack = (targets, y) => gsap.to(targets, {
-    autoAlpha: 0, y, ease: "none",
-    scrollTrigger: { trigger: intro, start: "top top", end: "22% top", scrub: 0.3 },
-  });
-  stepBack(intro.querySelector(".intro-fade"), -24);              // "Daraz price check · Bangladesh"
-  stepBack([...intro.querySelectorAll(".intro-fade")].slice(1), 28);  // the line and "Scroll"
-  stepBack(intro.querySelectorAll(".intro-side"), 28);                // the side notes
-  gsap.to(pen, {
-    autoAlpha: 0, ease: "none",
-    scrollTrigger: { trigger: intro, start: "top top", end: "25% top", scrub: 0.4 },
-  });
-  // The page's column lines slowly fade as the real columns arrive.
-  gsap.to(".intro-guides", {
-    autoAlpha: 0, ease: "none",
-    scrollTrigger: { trigger: intro, start: "30% top", end: "bottom top", scrub: true },
-  });
+  function setupScroll() {
+    document.body.classList.add("has-intro");  // the header logo hands over to the big one
+    gsap.to(mark, {
+      x: () => delta().x,
+      y: () => delta().y,
+      scale: () => delta().scale,
+      transformOrigin: "0 0",
+      ease: "power1.inOut",
+      scrollTrigger: { trigger: intro, start: "top top", end: "bottom top", scrub: 0.6, invalidateOnRefresh: true },
+      onUpdate() { document.body.classList.toggle("logo-landed", this.progress() > 0.995); },
+    });
+    // Everything else in the intro steps back in the first part of the scroll.
+    const stepBack = (targets, y) => gsap.to(targets, {
+      autoAlpha: 0, y, ease: "none",
+      scrollTrigger: { trigger: intro, start: "top top", end: "22% top", scrub: 0.3 },
+    });
+    stepBack(intro.querySelector(".intro-fade"), -24);              // "Daraz price check · Bangladesh"
+    stepBack([...intro.querySelectorAll(".intro-fade")].slice(1), 28);  // the line and "Scroll"
+    stepBack(intro.querySelectorAll(".intro-side"), 28);                // the side notes
+    gsap.to(pen, {
+      autoAlpha: 0, ease: "none",
+      scrollTrigger: { trigger: intro, start: "top top", end: "25% top", scrub: 0.4 },
+    });
+    // The page's column lines slowly fade as the real columns arrive.
+    gsap.to(".intro-guides", {
+      autoAlpha: 0, ease: "none",
+      scrollTrigger: { trigger: intro, start: "30% top", end: "bottom top", scrub: true },
+    });
+
+    ScrollTrigger.refresh();
+    // Already scrolled to the checker: the small header logo shows straight away.
+    document.body.classList.toggle("logo-landed", scrollY >= intro.offsetHeight - 2);
+  }
+  if (!startAtApp) setupScroll();
 
   // Fonts change the logo's size: measure again once they're in.
   document.fonts?.ready.then(() => { alignFroms(); placePen(); ScrollTrigger.refresh(); });
