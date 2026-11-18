@@ -32,7 +32,6 @@ OLD_PRICE = ".pdp-price_type_deleted"
 CHOSEN_OPTION = ".sku-variable-name-selected"
 DELIVERY_FEE = ".delivery-option-item__shipping-fee"  # "Free" or "৳ 60" (first = standard delivery)
 ROBOT_CHECK = "#nc_1_n1z, .nc-container, #baxia-dialog-content, iframe[src*='punish']"
-SKIP = {"image", "font", "media"}
 AT_ONCE = 4
 NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 
@@ -197,6 +196,25 @@ async def _launch(pw):
     raise RuntimeError(state.broken)
 
 
+# Blocked inside the browser itself (no trip back to us per request, which matters when the browser
+# is a service on another continent): pictures, fonts, video, and trackers the price doesn't need.
+BLOCKED_URLS = [
+    "*.jpg*", "*.jpeg*", "*.png*", "*.webp*", "*.gif*", "*.svg*", "*.ico*", "*.avif*",
+    "*.woff*", "*.ttf*", "*.otf*", "*.mp4*", "*.webm*",
+    "*google-analytics.com*", "*googletagmanager.com*", "*doubleclick.net*", "*facebook.net*",
+    "*facebook.com/tr*", "*mmstat.com*", "*hotjar*", "*clarity.ms*",
+]
+
+
+async def _block_heavy(page) -> None:
+    try:
+        cdp = await page.context.new_cdp_session(page)
+        await cdp.send("Network.enable")
+        await cdp.send("Network.setBlockedURLs", {"urls": BLOCKED_URLS})
+    except Exception:  # some browsers don't allow it; the page just loads a bit slower
+        pass
+
+
 async def _read_all(urls: list[str]) -> dict[str, SeenPrice]:
     from playwright.async_api import async_playwright
 
@@ -204,17 +222,6 @@ async def _read_all(urls: list[str]) -> dict[str, SeenPrice]:
         browser = await _launch(pw)
         try:
             context = await browser.new_context(locale="en-US", viewport={"width": 1280, "height": 900})
-
-            async def skip_heavy(route):
-                if route.request.resource_type in SKIP:
-                    await route.abort()
-                else:
-                    await route.continue_()
-
-            try:
-                await context.route("**/*", skip_heavy)
-            except Exception:  # some remote browsers don't allow this; pages just load a bit slower
-                pass
             gate = asyncio.Semaphore(AT_ONCE)
             seen: dict[str, SeenPrice] = {}
 
@@ -226,6 +233,7 @@ async def _read_all(urls: list[str]) -> dict[str, SeenPrice]:
                         return
                     page = await context.new_page()
                     try:
+                        await _block_heavy(page)
                         found = await _read_page(page, url)
                         if found:
                             seen[url] = found
@@ -240,36 +248,60 @@ async def _read_all(urls: list[str]) -> dict[str, SeenPrice]:
             await browser.close()
 
 
+# Runs inside the page: waits for the price (or a robot check), then for the delivery box, and
+# returns everything at once. One call instead of dozens of small ones, each a trip to the browser.
+READ_PAGE_JS = """
+async ({price, old, chosen, fee, robot}) => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const text = (el) => (el && el.innerText ? el.innerText.trim() : "");
+  const blocked = () => location.href.toLowerCase().includes("punish") || !!document.querySelector(robot);
+  let start = Date.now();
+  while (!text(document.querySelector(price))) {
+    if (blocked()) return { robot: true };
+    if (Date.now() - start > 15000) return null;
+    await wait(150);
+  }
+  if (blocked()) return { robot: true };
+  window.scrollBy(0, 400);  // in case the delivery box loads when seen
+  start = Date.now();
+  while (!text(document.querySelector(fee)) && Date.now() - start < 3000) await wait(150);
+  return {
+    price: text(document.querySelector(price)),
+    old: text(document.querySelector(old)),
+    options: [...document.querySelectorAll(chosen)].map(text).filter(Boolean),
+    fee: text(document.querySelector(fee)),
+  };
+}
+"""
+
+
+def _robot_seen() -> None:
+    state.blocked = True
+    log.warning("Daraz showed a robot check. Reading sale prices with the browser is paused "
+                "until the server restarts.")
+
+
 async def _read_page(page, url: str) -> SeenPrice | None:
     await page.goto(url, wait_until="domcontentloaded", timeout=20_000)
-    price = page.locator(PRICE).first
-    robot = page.locator(ROBOT_CHECK).first
-    # Whichever shows up first: the price, or a robot check.
-    for _ in range(60):
-        if "punish" in page.url.lower() or await robot.count():
-            state.blocked = True
-            log.warning("Daraz showed a robot check. Reading sale prices with the browser is paused "
-                        "until the server restarts.")
+    try:
+        found = await page.evaluate(READ_PAGE_JS, {"price": PRICE, "old": OLD_PRICE, "chosen": CHOSEN_OPTION,
+                                                    "fee": DELIVERY_FEE, "robot": ROBOT_CHECK})
+    except Exception:
+        # The page went somewhere else while we read it: a robot check, or just a failed read.
+        if "punish" in page.url.lower():
+            _robot_seen()
             return None
-        if await price.count() and (await price.inner_text()).strip():
-            break
-        await page.wait_for_timeout(250)
-    else:
+        raise
+    if not found:
         return None
-    now = _number(await price.inner_text())
+    if found.get("robot"):
+        _robot_seen()
+        return None
+    now = _number(found["price"])
     if not now:
         return None
-    old_node = page.locator(OLD_PRICE).first
-    old = _number(await old_node.inner_text()) if await old_node.count() else None
-    chosen = page.locator(CHOSEN_OPTION)
-    option = " / ".join(t.strip() for t in await chosen.all_inner_texts() if t.strip()) or None
-    delivery = None
-    fee = page.locator(DELIVERY_FEE).first
-    try:
-        await page.evaluate("window.scrollBy(0, 400)")  # in case the delivery box loads when seen
-        await fee.wait_for(timeout=3000)  # the delivery box loads a moment after the price
-        text = (await fee.inner_text()).strip()
-        delivery = 0.0 if "free" in text.lower() else _number(text)
-    except Exception:
-        pass
+    old = _number(found["old"])
+    option = " / ".join(found["options"]) or None
+    fee_text = found["fee"]
+    delivery = (0.0 if "free" in fee_text.lower() else _number(fee_text)) if fee_text else None
     return SeenPrice(price=now, original=old if old and old > now else None, option=option, delivery=delivery)
