@@ -666,7 +666,7 @@ h1 { font-weight: 700; font-size: 40px; line-height: 1.02; letter-spacing: -0.03
 /* ---------- Thank-you strip: credit to the owner, on Instagram (above the footer) ---------- */
 .thanks { padding: 28px 32px; border-top: 1px solid var(--rule); }
 .thanks .mono { margin: 0; }
-.thanks-line { margin: 6px 0 16px; max-width: 30ch; font-family: "Bricolage Grotesque", var(--sans); font-weight: 700;
+.thanks-line { margin: 0 0 16px; max-width: 30ch; font-family: "Bricolage Grotesque", var(--sans); font-weight: 700;
   font-size: clamp(22px, 2.4vw, 30px); line-height: 1.15; letter-spacing: -0.015em; color: var(--ink); }
 .thanks-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border: 1px solid var(--ink);
   color: var(--ink); text-decoration: none; transition: background-color .15s ease, color .15s ease; }
