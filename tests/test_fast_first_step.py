@@ -65,6 +65,24 @@ def test_one_web_request_reads_the_pages(web_api):
     assert browser.status()["via"] == "web API" and browser.state.last_error is None
 
 
+def test_answers_wrapped_or_as_text_are_understood(web_api):
+    page = {"price": "৳ 560", "old": "৳ 3,200", "options": [], "fee": "Free"}
+    web_api({"data": {"robot": False, "results": {PAGE_URL: page}}, "type": "application/json"})
+    assert browser.read_prices([PAGE_URL], fresh=True) == {PAGE_URL: SeenPrice(560, 3200, None, 0)}
+
+
+def test_an_unexpected_answer_is_reported_in_the_status(web_api, monkeypatch):
+    monkeypatch.setattr(browser, "_has_playwright", lambda: False)
+    web_api(httpx.Response(200, text="<html>Not what we asked for</html>"))
+    assert browser.read_prices([PAGE_URL], fresh=True) == {}
+    assert "unexpected answer" in browser.state.last_error
+    web_api({"robot": False, "results": {PAGE_URL: {"error": "page.createCDPSession is not a function"}}})
+    browser._cache.clear()
+    assert browser.read_prices([PAGE_URL], fresh=True) == {}
+    assert "createCDPSession is not a function" in browser.state.last_error
+    assert browser.status()["working"] is False
+
+
 def test_a_robot_check_pauses_the_browser(web_api):
     web_api({"robot": True, "results": {PAGE_URL: {"robot": True}}})
     assert browser.read_prices([PAGE_URL], fresh=True) == {}

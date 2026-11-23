@@ -271,18 +271,37 @@ def web_api_request(urls: list[str]) -> dict:
                                       "fee": DELIVERY_FEE, "robot": ROBOT_CHECK}}}
 
 
-def seen_from_web_api(body: dict) -> dict[str, SeenPrice]:
-    """Browserless's answer as prices. A robot check pauses the browser, as with Playwright."""
+def seen_from_web_api(body) -> dict[str, SeenPrice]:
+    """Browserless's answer as prices. A robot check pauses the browser, as with Playwright.
+    Raises (with what came back, never the token) if the answer isn't what our code returns,
+    and notes in /api/status why pages couldn't be read."""
+    import json
+
+    if isinstance(body, str):  # the JSON sent as text, or something else entirely
+        try:
+            body = json.loads(body)
+        except ValueError:
+            raise RuntimeError(_hide_secrets(f"unexpected answer from the browser service: {body[:160]}")) from None
+    if isinstance(body, dict) and "results" not in body and isinstance(body.get("data"), (dict, str)):
+        body = body["data"] if isinstance(body["data"], dict) else json.loads(body["data"])  # wrapped once more
+    if not isinstance(body, dict) or not isinstance(body.get("results"), dict):
+        shape = sorted(body)[:8] if isinstance(body, dict) else type(body).__name__
+        raise RuntimeError(_hide_secrets(f"unexpected answer from the browser service: {shape} {str(body)[:160]}"))
     if body.get("robot"):
         _robot_seen()
-    seen = {}
-    for url, found in (body.get("results") or {}).items():
+    seen, problems = {}, []
+    for url, found in body["results"].items():
         if isinstance(found, dict) and found.get("error"):
-            log.info("Couldn't read the price on %s: %s", url, _hide_secrets(found["error"]))
+            problems.append(_hide_secrets(str(found["error"]))[:160])
+            log.info("Couldn't read the price on %s: %s", url, problems[-1])
             continue
         price = _to_seen(found)
         if price:
             seen[url] = price
+        elif not (isinstance(found, dict) and found.get("robot")):
+            problems.append(f"no price on the page ({str(found)[:100]})")
+    if problems and not seen:
+        raise RuntimeError(f"web API read none of {len(body['results'])} pages; first problem: {problems[0]}")
     return seen
 
 
@@ -293,7 +312,11 @@ def _read_with_web_api(urls: list[str], timeout_s: float) -> dict[str, SeenPrice
     response = httpx.post(_web_api(), json=web_api_request(urls), timeout=timeout_s + 20)
     if response.status_code != 200:
         raise RuntimeError(f"the browser service answered {response.status_code}: {response.text[:150]}")
-    return seen_from_web_api(response.json())
+    try:
+        body = response.json()
+    except ValueError:
+        body = response.text  # not JSON: seen_from_web_api says what came back
+    return seen_from_web_api(body)
 
 
 async def _launch(pw):
