@@ -46,6 +46,9 @@ def _browser_address(value: str) -> str:
 BROWSER_WS_URL = _browser_address(_env("BROWSER_WS_URL"))
 BROWSER_PRICES = _env("BROWSER_PRICES", "0" if ON_VERCEL and not BROWSER_WS_URL else "1") == "1"
 BROWSER_CHANNEL = _env("BROWSER_CHANNEL")  # "msedge", "chrome", or empty = try Edge, Chrome, then Chromium
+# How to use the browser service: "auto" = Browserless's web API when the address is Browserless,
+# else Playwright; "web" = always the web API; "cdp" = always Playwright over the address.
+BROWSER_API = _env("BROWSER_API", "auto").lower()
 
 # Polite delay range (seconds) between requests when the collector refreshes many products.
 COLLECTOR_DELAY_RANGE = (4.0, 9.0)

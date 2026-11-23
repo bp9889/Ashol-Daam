@@ -11,6 +11,9 @@ Turn it off with BROWSER_PRICES=0.
 
 On Vercel (which can't run a browser) set BROWSER_WS_URL to a browser service's address, e.g.
 Browserless: wss://production-sfo.browserless.io?token=YOUR_TOKEN
+For Browserless the pages are read through its web API (/function): one web request runs the
+reading code next to the browser, so no Playwright is needed here and nothing crosses the ocean
+per page. Other services (or BROWSER_API=cdp) are driven with Playwright over the address itself.
 """
 
 from __future__ import annotations
@@ -48,14 +51,34 @@ class _State:
     blocked = False  # Daraz showed a robot check: no more browser reads until the server restarts
     broken: str | None = None  # couldn't start any browser
     last_error: str | None = None  # most recent failure, shown on /api/status
+    via: str | None = None  # how the last read was done: "web API" or "Playwright"
 
 
 state = _State()
 
 
+def _has_playwright() -> bool:
+    return importlib.util.find_spec("playwright") is not None
+
+
+def _web_api() -> str | None:
+    """Browserless's /function address (with the token) when the service is Browserless."""
+    address = config.BROWSER_WS_URL
+    if not address or config.BROWSER_API == "cdp":
+        return None
+    from urllib.parse import urlparse
+
+    parsed = urlparse(address)
+    if not parsed.hostname or (config.BROWSER_API != "web" and not parsed.hostname.endswith("browserless.io")):
+        return None
+    scheme = "http" if parsed.scheme in ("ws", "http") else "https"
+    query = f"{parsed.query}&" if parsed.query else ""
+    return f"{scheme}://{parsed.netloc}/function?{query}timeout=45000"
+
+
 def available() -> bool:
     return (config.BROWSER_PRICES and not state.blocked and not state.broken
-            and importlib.util.find_spec("playwright") is not None)
+            and (_web_api() is not None or _has_playwright()))
 
 
 def _hide_secrets(text: str) -> str:
@@ -67,7 +90,7 @@ def status() -> dict:
     """For /api/status: can this server read prices with a browser right now, and if not, why."""
     if not config.BROWSER_PRICES:
         why = "off (on Vercel, set BROWSER_WS_URL)" if config.ON_VERCEL else "off (BROWSER_PRICES=0)"
-    elif importlib.util.find_spec("playwright") is None:
+    elif _web_api() is None and not _has_playwright():
         why = "Playwright isn't installed"
     elif state.blocked:
         why = "paused: Daraz showed a robot check"
@@ -78,6 +101,7 @@ def status() -> dict:
     # Public, so it never describes the service address or its token (not even its length).
     return {"working": why is None and not state.last_error,
             "uses": "browser service" if config.BROWSER_WS_URL else "this computer's browser",
+            "via": state.via or ("web API" if _web_api() else "Playwright"),
             "problem": why, "last_error": state.last_error}
 
 
@@ -158,24 +182,118 @@ def read_prices(urls: list[str], timeout_s: float = 25, fresh: bool = False) -> 
     if not urls:
         return cached
     result: dict[str, SeenPrice] = {}
-
-    def run() -> None:
+    if _web_api():
         try:
-            result.update(asyncio.run(asyncio.wait_for(_read_all(urls), timeout_s + 15)))
+            result = _read_with_web_api(urls, timeout_s)
+            state.via, state.last_error = "web API", None
         except Exception as exc:  # the browser is a bonus: never break a price check because of it
-            first_line = str(exc).splitlines()[0] if str(exc) else ""
-            state.last_error = _hide_secrets(f"{type(exc).__name__}: {first_line}")[:300]
-            log.warning("Browser price check failed: %s", state.last_error)
-
-    # Run in a fresh thread so it never clashes with an event loop already running here.
-    worker = threading.Thread(target=run, daemon=True)
-    worker.start()
-    worker.join(timeout_s + 20)
+            _note_failure(exc)
+            if not _has_playwright():
+                return cached
+            log.warning("Trying Playwright instead of the web API.")
+            result = _read_with_playwright(urls, timeout_s)
+    else:
+        result = _read_with_playwright(urls, timeout_s)
     for url, seen in result.items():
         _cache[url] = (time.monotonic(), seen)
     if result:
         _save_reads(result)
     return {**cached, **result}
+
+
+def _note_failure(exc: Exception) -> None:
+    first_line = str(exc).splitlines()[0] if str(exc) else ""
+    state.last_error = _hide_secrets(f"{type(exc).__name__}: {first_line}")[:300]
+    log.warning("Browser price check failed: %s", state.last_error)
+
+
+def _read_with_playwright(urls: list[str], timeout_s: float) -> dict[str, SeenPrice]:
+    result: dict[str, SeenPrice] = {}
+
+    def run() -> None:
+        try:
+            result.update(asyncio.run(asyncio.wait_for(_read_all(urls), timeout_s + 15)))
+            state.via, state.last_error = "Playwright", None
+        except Exception as exc:
+            _note_failure(exc)
+
+    # Run in a fresh thread so it never clashes with an event loop already running here.
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(timeout_s + 20)
+    return dict(result)
+
+
+# Runs on Browserless, next to the browser (its /function API, with Puppeteer): opens the pages a
+# few at a time, blocks pictures and trackers, reads each with READ_PAGE_JS, sends it all back.
+WEB_API_CODE = """
+export default async function ({ page, context }) {
+  const read = %(read)s;
+  const browser = page.browser();
+  const results = {};
+  let robot = false;
+  const one = async (url) => {
+    if (robot) return;
+    const tab = await browser.newPage();
+    try {
+      try {
+        const cdp = tab.createCDPSession ? await tab.createCDPSession() : await tab.target().createCDPSession();
+        await cdp.send("Network.enable");
+        await cdp.send("Network.setBlockedURLs", { urls: context.blocked });
+      } catch (e) {}
+      await tab.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
+      const found = await tab.evaluate(read, context.selectors);
+      if (found && found.robot) robot = true;
+      results[url] = found;
+    } catch (e) {
+      const at = tab.url() || "";
+      if (at.toLowerCase().includes("punish")) { robot = true; results[url] = { robot: true }; }
+      else results[url] = { error: String((e && e.message) || e).slice(0, 200) };
+    } finally {
+      await tab.close().catch(() => {});
+    }
+  };
+  const queue = [...context.urls];
+  const workers = Array.from({ length: Math.min(context.atOnce, queue.length) }, async () => {
+    while (queue.length && !robot) await one(queue.shift());
+  });
+  await Promise.all(workers);
+  return { data: { results, robot }, type: "application/json" };
+}
+"""
+
+
+def web_api_request(urls: list[str]) -> dict:
+    """The body sent to Browserless's /function: the code above and what it needs."""
+    return {"code": WEB_API_CODE % {"read": READ_PAGE_JS.strip()},
+            "context": {"urls": urls, "atOnce": AT_ONCE, "blocked": BLOCKED_URLS,
+                        "selectors": {"price": PRICE, "old": OLD_PRICE, "chosen": CHOSEN_OPTION,
+                                      "fee": DELIVERY_FEE, "robot": ROBOT_CHECK}}}
+
+
+def seen_from_web_api(body: dict) -> dict[str, SeenPrice]:
+    """Browserless's answer as prices. A robot check pauses the browser, as with Playwright."""
+    if body.get("robot"):
+        _robot_seen()
+    seen = {}
+    for url, found in (body.get("results") or {}).items():
+        if isinstance(found, dict) and found.get("error"):
+            log.info("Couldn't read the price on %s: %s", url, _hide_secrets(found["error"]))
+            continue
+        price = _to_seen(found)
+        if price:
+            seen[url] = price
+    return seen
+
+
+def _read_with_web_api(urls: list[str], timeout_s: float) -> dict[str, SeenPrice]:
+    """One web request to Browserless reads every page. Raises if the service can't be used."""
+    import httpx
+
+    response = httpx.post(_web_api(), json=web_api_request(urls), timeout=timeout_s + 20)
+    if response.status_code != 200:
+        raise RuntimeError(f"the browser service answered {response.status_code}: {response.text[:150]}")
+    return seen_from_web_api(response.json())
 
 
 async def _launch(pw):
@@ -292,16 +410,21 @@ async def _read_page(page, url: str) -> SeenPrice | None:
             _robot_seen()
             return None
         raise
-    if not found:
-        return None
-    if found.get("robot"):
+    if found and found.get("robot"):
         _robot_seen()
         return None
-    now = _number(found["price"])
+    return _to_seen(found)
+
+
+def _to_seen(found: dict | None) -> SeenPrice | None:
+    """What READ_PAGE_JS read from a page, as numbers."""
+    if not found or found.get("robot"):
+        return None
+    now = _number(found.get("price"))
     if not now:
         return None
-    old = _number(found["old"])
-    option = " / ".join(found["options"]) or None
-    fee_text = found["fee"]
+    old = _number(found.get("old"))
+    option = " / ".join(found.get("options") or []) or None
+    fee_text = found.get("fee") or ""
     delivery = (0.0 if "free" in fee_text.lower() else _number(fee_text)) if fee_text else None
     return SeenPrice(price=now, original=old if old and old > now else None, option=option, delivery=delivery)

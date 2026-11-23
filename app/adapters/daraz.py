@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import time
 from dataclasses import replace
 from typing import Any, Callable
 from urllib.parse import quote_plus, urlparse
@@ -27,7 +28,8 @@ from urllib.parse import quote_plus, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
-from .base import Adapter, AdapterError, BlockedError, Listing, PriceNeeded, ProductData, UnsupportedUrlError
+from .base import (Adapter, AdapterError, BlockedError, Listing, PriceNeeded, PriceReading, ProductData,
+                   UnsupportedUrlError)
 
 CURRENCY_BY_HOST = {
     "daraz.com.bd": "BDT",
@@ -123,6 +125,24 @@ def _absolute_image(src: str | None) -> str | None:
     return "https:" + src if src.startswith("//") else src
 
 
+# Pages read with quick=True whose price still needs the browser, kept for the follow-up request
+# (same server, a minute at most), so the page isn't downloaded and searched for a second time.
+WAITING_SECONDS = 120
+_waiting: dict[str, tuple[float, ProductData]] = {}
+
+
+def _keep_waiting(url: str, data: ProductData) -> None:
+    now = time.monotonic()
+    for key in [k for k, (at, _) in _waiting.items() if now - at > WAITING_SECONDS]:
+        del _waiting[key]
+    _waiting[url] = (now, replace(data))
+
+
+def _take_waiting(url: str) -> ProductData | None:
+    hit = _waiting.pop(url, None)
+    return hit[1] if hit and time.monotonic() - hit[0] <= WAITING_SECONDS else None
+
+
 class DarazAdapter(Adapter):
     source = "daraz"
 
@@ -174,9 +194,14 @@ class DarazAdapter(Adapter):
             raise BlockedError("Daraz showed a robot check instead of the page. Wait a while before checking again.")
         return response
 
-    def fetch(self, url: str, manual_price: float | None = None) -> ProductData:
+    def fetch(self, url: str, manual_price: float | None = None, quick: bool = False) -> ProductData:
         if not self.matches(url):
             raise UnsupportedUrlError("Only Daraz product links are supported right now.")
+        waiting = _take_waiting(url)
+        if waiting is not None and not manual_price:
+            # Asked a moment ago with quick=True: the page is already read, only the browser step is left.
+            self.read_shown_price(waiting)
+            return self._price_or_ask(waiting)
         response = self._get(url)
         if not ID_PATTERN.search(urlparse(str(response.url)).path):
             # Share links from the Daraz app (s.daraz.com.bd/s.XXXX) land on a small "bridge" page
@@ -192,6 +217,12 @@ class DarazAdapter(Adapter):
         data = self.parse(response.text, page_url)
         if data.price_unconfirmed and not manual_price:
             self.confirm_price(data)  # a search; skipped when we already know the price
+        if data.price_unconfirmed and not manual_price and quick and self.can_read_shown_price():
+            # The browser takes a while: say what we have now, and read the price on the next request.
+            _keep_waiting(url, data)
+            raise PriceReading({"title": data.title, "image_url": data.image_url, "url": data.url,
+                                "variant": data.variant if data.variant_count > 1 else None,
+                                "listed_price": data.original_price or data.price or None})
         if data.price_unconfirmed and not manual_price:
             self.read_shown_price(data)
         if data.price_unconfirmed and manual_price:
@@ -200,6 +231,9 @@ class DarazAdapter(Adapter):
             data.price = float(manual_price)
             data.original_price = old if old and old > data.price else None
             data.price_unconfirmed = False
+        return self._price_or_ask(data)
+
+    def _price_or_ask(self, data: ProductData) -> ProductData:
         if data.price_unconfirmed:
             # Better to ask than to guess: a wrong price would also spoil the product's history.
             # The page's price is the regular price. It's what you pay when no sale is running, and
@@ -246,6 +280,11 @@ class DarazAdapter(Adapter):
             if link and self.matches(link) and ID_PATTERN.search(urlparse(link).path):
                 return link
         return None
+
+    def can_read_shown_price(self) -> bool:
+        from .. import browser
+
+        return browser.available()
 
     def see_prices(self, urls: list[str], fresh: bool = False) -> dict:
         from .. import browser

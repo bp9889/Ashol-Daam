@@ -1,4 +1,5 @@
-from .base import Adapter, AdapterError, BlockedError, Listing, PriceNeeded, ProductData, UnsupportedUrlError
+from .base import (Adapter, AdapterError, BlockedError, Listing, PriceNeeded, PriceReading, ProductData,
+                   UnsupportedUrlError)
 from .daraz import DarazAdapter
 
 # To support a new store later (Amazon via its official Creators API, Pickaboo, ...),
@@ -20,6 +21,7 @@ __all__ = [
     "BlockedError",
     "Listing",
     "PriceNeeded",
+    "PriceReading",
     "ProductData",
     "UnsupportedUrlError",
     "get_adapter",

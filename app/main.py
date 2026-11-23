@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import alerts, browser, config, scheduler, services, telegram
-from .adapters import AdapterError, BlockedError, PriceNeeded, UnsupportedUrlError, get_adapter
+from .adapters import AdapterError, BlockedError, PriceNeeded, PriceReading, UnsupportedUrlError, get_adapter
 from .db import SessionLocal, get_session, init_db
 from .models import Product
 from .seed import seed_demo
@@ -88,6 +88,9 @@ class TrackRequest(BaseModel):
     # The price "Where to buy" already showed for this listing (when you click a seller). Used only
     # if the page doesn't state the price itself, so we don't open it in a browser again.
     known_price: float | None = Field(default=None, gt=0, lt=100_000_000)
+    # True: answer at once with the product's name and photo when its price needs the browser
+    # (202, "reading_price"); the page then asks again without it to get the verdict.
+    quick: bool = False
 
 
 class AlertRequest(BaseModel):
@@ -96,6 +99,8 @@ class AlertRequest(BaseModel):
 
 @app.exception_handler(AdapterError)
 async def adapter_error_handler(_, exc: AdapterError):
+    if isinstance(exc, PriceReading):
+        return JSONResponse(status_code=202, content={"reading_price": True, "detail": str(exc), "preview": exc.preview})
     if isinstance(exc, PriceNeeded):
         return JSONResponse(status_code=422, content={
             "detail": str(exc), "need_price": True, "variant": exc.variant, "old_price": exc.old_price})
@@ -105,7 +110,7 @@ async def adapter_error_handler(_, exc: AdapterError):
 
 @app.post("/api/track")
 def track(body: TrackRequest, session: Session = Depends(get_session), visitor: str = Depends(visitor_id)):
-    product = services.track(session, body.url, body.price, known_price=body.known_price)
+    product = services.track(session, body.url, body.price, known_price=body.known_price, quick=body.quick)
     services.remember(session, visitor, product)
     return services.report(product)
 

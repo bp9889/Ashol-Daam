@@ -210,6 +210,19 @@
     new MutationObserver(done).observe(result, { attributes: true, attributeFilter: ["data-verdict"] });
     addEventListener("resize", () => { if (!box.hidden) place(); });
     addEventListener("scroll", () => { if (!box.hidden) place(); }, { passive: true });
+
+    // The product is known before its price (app.js, "asol:peek"): print its photo on the receipt.
+    const paper = box.querySelector(".printer-paper");
+    const head = box.querySelector(".pp-head");
+    addEventListener("asol:peek", (e) => {
+      const found = e.detail;
+      paper.querySelector(".pp-photo")?.remove();
+      paper.classList.toggle("has-photo", Boolean(found?.image_url));
+      head.textContent = found ? "FOUND IT" : "ASOL DAM";
+      if (!found?.image_url) return;
+      const photo = Object.assign(document.createElement("img"), { className: "pp-photo", alt: "", src: found.image_url });
+      head.after(photo);
+    });
   }
 
   // ---------- 4. Highlight Grid: one highlight glides behind the row under the cursor ----------

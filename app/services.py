@@ -298,8 +298,10 @@ def save_snapshot(session: Session, data: ProductData, adapter: Adapter | None =
 
 
 def track(session: Session, url: str, manual_price: float | None = None,
-          known_price: float | None = None) -> Product:
-    """Start tracking a link, or return the existing product if it was checked recently."""
+          known_price: float | None = None, quick: bool = False) -> Product:
+    """Start tracking a link, or return the existing product if it was checked recently.
+    quick=True: if the price needs the browser, raise PriceReading with what's known so far
+    (title, photo) instead of waiting; the same call with quick=False then finishes it."""
     # Sharing from the Daraz app copies a sentence with the link in it; take just the link.
     found = re.search(r"https?://\S+", url)
     url = (found.group(0) if found else url).strip().rstrip(".,;)")
@@ -317,7 +319,9 @@ def track(session: Session, url: str, manual_price: float | None = None,
             update_market(session, existing, adapter, detailed=False)  # no-op unless the comparison is old
         return existing
     # Quick: the verdict comes back in seconds. The page then asks for details (add_details).
-    return save_snapshot(session, adapter.fetch(url, manual_price or known_price), adapter, detailed=False)
+    price = manual_price or known_price
+    data = adapter.fetch(url, price, quick=True) if quick else adapter.fetch(url, price)
+    return save_snapshot(session, data, adapter, detailed=False)
 
 
 def refresh(session: Session, product: Product, force: bool = False, detailed: bool = True) -> Product:

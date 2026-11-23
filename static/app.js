@@ -1094,11 +1094,35 @@ async function submitPrice(price, button) {
   }
 }
 
+// The product we're reading the price of, shown while we wait (and printed on the loader's
+// receipt by motion.js). null: done.
+let peeking = false;
+
+function showPeek(preview) {
+  peeking = Boolean(preview);
+  dispatchEvent(new CustomEvent("asol:peek", { detail: preview || null }));
+  if (!preview) return;
+  const name = preview.title.length > 70 ? `${preview.title.slice(0, 68)}…` : preview.title;
+  const size = preview.variant ? ` (${preview.variant})` : "";
+  showMessage(`Found it: ${name}${size}. Reading its sale price from Daraz, about 10 seconds…`);
+}
+
 async function checkLink(url, price = null, knownPrice = null) {
   const body = { url };
   if (price) body.price = price;              // typed by you: always used
   else if (knownPrice) body.known_price = knownPrice;  // shown in "Where to buy": saves re-reading the page
-  const r = await api("/api/track", { method: "POST", body: JSON.stringify(body), timeout: 60000 });
+  // Ask quickly first: if the price has to be read in a browser (10+ seconds), the answer is the
+  // product's name and photo, shown while the second request reads the price and gives the verdict.
+  const quick = !price && !knownPrice;
+  let r = await api("/api/track", { method: "POST", body: JSON.stringify({ ...body, quick }), timeout: 60000 });
+  if (r.reading_price) {
+    showPeek(r.preview);
+    try {
+      r = await api("/api/track", { method: "POST", body: JSON.stringify(body), timeout: 60000 });
+    } finally {
+      showPeek(null);
+    }
+  }
   $("priceAsk").hidden = true;
   pendingUrl = null;
   pendingListed = null;
@@ -1173,7 +1197,7 @@ function setupForm() {
     showMessage("Reading the price and comparing sellers on Daraz…");
     $("priceAsk").hidden = true;
     // Sizes' sale prices are read by opening sellers' pages, which takes a little longer.
-    const slow = setTimeout(() => showMessage("Reading the price of your size from Daraz…"), 4000);
+    const slow = setTimeout(() => { if (!peeking) showMessage("Reading the price of your size from Daraz…"); }, 4000);
     try {
       await checkLink(url);
     } catch (err) {

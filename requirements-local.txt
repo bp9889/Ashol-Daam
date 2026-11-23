@@ -1,3 +1,7 @@
 # Everything the website needs, plus the test tools.
 -r requirements.txt
 pytest>=8.0
+# Opens Daraz pages in Edge/Chrome on your PC (and in the twice daily GitHub check) to read sale
+# prices. Not needed on Vercel: there Browserless is used through its web API (see app/browser.py).
+# Kept below 1.65: from 1.65 its helper program needs libatomic, which some Linux servers lack.
+playwright>=1.45,<1.65

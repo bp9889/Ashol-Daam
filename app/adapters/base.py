@@ -76,6 +76,16 @@ class PriceNeeded(AdapterError):
         self.old_price = old_price
 
 
+class PriceReading(AdapterError):
+    """Not an error: the page was read, but its price must be read in a browser (10+ seconds).
+    Raised only when asked to answer quickly, so the site can show the product while it waits.
+    `preview` is what's known already: title, photo, the listed price."""
+
+    def __init__(self, preview: dict):
+        super().__init__("Reading the sale price from Daraz…")
+        self.preview = preview
+
+
 class BlockedError(AdapterError):
     """The store showed a captcha / bot check instead of the product page."""
 
@@ -92,9 +102,10 @@ class Adapter(ABC):
         """Stable id for the product, taken from the link (no network call)."""
 
     @abstractmethod
-    def fetch(self, url: str, manual_price: float | None = None) -> ProductData:
+    def fetch(self, url: str, manual_price: float | None = None, quick: bool = False) -> ProductData:
         """Download the product page and return its current data. `manual_price` is a price the
-        person typed, used only when the store doesn't publish the price itself."""
+        person typed, used only when the store doesn't publish the price itself. quick=True: raise
+        PriceReading instead of waiting for a browser to read the price (ask again with quick=False)."""
 
     def size_option(self, listing: Listing, wanted: Callable[[str], bool]) -> Listing | None:
         """A listing that sells several sizes, narrowed to the size `wanted` accepts (by option name).

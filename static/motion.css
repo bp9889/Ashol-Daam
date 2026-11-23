@@ -41,6 +41,10 @@
   will-change: transform, opacity;  /* moved by the graphics card: no redrawing while it slides */
 }
 .pp-head { margin: 0; font-size: 9px; letter-spacing: 0.2em; color: var(--ink-2); }
+/* The product's photo, once it's known (while its price is read): it takes the dashed lines' place. */
+.pp-photo { display: block; width: 46px; height: 46px; margin: 8px auto 0; object-fit: cover; background: var(--tile); }
+.printer-paper.has-photo .pp-line { display: none; }
+.printer-paper.has-photo .pp-price { margin: 6px 0 8px; }
 .pp-price { margin: 10px 0 12px; font-family: var(--sans); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; display: flex; justify-content: center; align-items: baseline; gap: 1px; }
 .reel { display: inline-block; height: 1.15em; line-height: 1.15em; overflow: hidden; }
 .reel > span { display: block; will-change: transform; }
