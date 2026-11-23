@@ -152,3 +152,14 @@ def test_without_a_browser_quick_still_asks_for_the_price(monkeypatch):
     monkeypatch.setattr(DarazAdapter, "can_read_shown_price", lambda self: False)
     with pytest.raises(PriceNeeded):
         adapter().fetch(URL_30ML, quick=True)
+
+
+def test_request_addresses_with_tokens_are_never_logged(caplog):
+    """httpx logs each request's address at INFO; Browserless's and Telegram's carry the token."""
+    import logging
+
+    import app.config  # noqa: F401  (sets the levels)
+
+    with caplog.at_level(logging.INFO):
+        logging.getLogger("httpx").info("HTTP Request: POST https://production-sfo.browserless.io/function?token=secret123")
+    assert "secret123" not in caplog.text

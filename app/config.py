@@ -10,6 +10,14 @@ except ImportError:  # python-dotenv is optional
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# The HTTP library logs every request's full address at INFO, and some addresses carry secrets
+# (Browserless's ?token=…, Telegram's /bot<token>/…). Hosts like Vercel keep those logs, so only
+# its warnings are shown.
+import logging  # noqa: E402
+
+for _noisy in ("httpx", "httpcore"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
 
 def _env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
